@@ -1,0 +1,23 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "yarrow-worker"
+version = "0.1.0"
+description = "Yarrow Celery Worker"
+authors = ["Team 13"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+celery = {extras = ["redis"], version = "*"}
+redis = "*"
+pypdf = "*"
+pdfplumber = "*"
+sqlalchemy = {extras = ["asyncio"], version = ">=2.0"}
+asyncpg = "*"
+psycopg2-binary = "*"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+

@@ -1,0 +1,15 @@
+# Ignore artifacts:
+build
+coverage
+.next/
+dist
+node_modules
+.venv
+__pycache__
+*.pyc
+
+# Ignore files where prettier shouldn't run:
+backend/alembic/
+*.lock
+package-lock.json
+poetry.lock

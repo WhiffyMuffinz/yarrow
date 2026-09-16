@@ -1,0 +1,46 @@
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "yarrow-backend"
+version = "0.1.0"
+description = "Yarrow FastAPI Backend"
+authors = ["Team 13"]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+fastapi = "*"
+uvicorn = {extras = ["standard"], version = "*"}
+pydantic = {extras = ["email"], version = ">=2.6"}
+pydantic-settings = "*"
+sqlalchemy = {extras = ["asyncio"], version = ">=2.0"}
+asyncpg = "*"
+psycopg2-binary = "*"
+alembic = "*"
+passlib = {extras = ["bcrypt"], version = "*"}
+python-jose = {extras = ["cryptography"], version = "*"}
+python-multipart = "*"
+boto3 = "*"
+pypdf = "*"
+pdfplumber = "*"
+celery = {extras = ["redis"], version = "*"}
+redis = "*"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+pytest-asyncio = "*"
+httpx = "*"
+ruff = "*"
+mypy = "*"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+ignore = ["B008", "BLE001"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+

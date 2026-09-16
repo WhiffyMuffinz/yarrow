@@ -1,0 +1,22 @@
+{
+  "document_id": "mock-uuid",
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 8.5,
+      "height": 11.0,
+      "regions": [
+        {
+          "type": "header",
+          "box": [0.1, 0.1, 0.9, 0.15],
+          "text": "Sample Document Header"
+        },
+        {
+          "type": "paragraph",
+          "box": [0.1, 0.2, 0.9, 0.4],
+          "text": "This is a sample document for testing."
+        }
+      ]
+    }
+  ]
+}

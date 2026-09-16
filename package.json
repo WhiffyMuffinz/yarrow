@@ -1,0 +1,25 @@
+{
+  "name": "yarrow-root",
+  "private": true,
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.2",
+    "prettier": "^3.2.5"
+  },
+  "lint-staged": {
+    "frontend/**/*.{js,jsx,ts,tsx}": [
+      "prettier --write",
+      "cd frontend && npx eslint --fix"
+    ],
+    "frontend/**/*.{json,css,md,html}": [
+      "prettier --write"
+    ],
+    "{backend,worker}/**/*.py": [
+      "poetry -C backend run ruff check --fix",
+      "poetry -C backend run ruff format"
+    ]
+  }
+}
