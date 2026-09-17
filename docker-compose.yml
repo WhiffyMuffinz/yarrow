@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:cf78e76683b9ca8c5733cbbdce6c9262b45b6767934dd0a95e671f9a0fc20685
     container_name: yarrow_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-yarrow}
@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   valkey:
-    image: valkey/valkey:7-alpine
+    image: valkey/valkey:7-alpine@sha256:9acdf6f0ae1771ea63c401e127054b2d1779227b9230dcfae37fa684610eaa4f
     container_name: yarrow_valkey
     ports:
       - "${VALKEY_PORT:-6379}:6379"
@@ -36,7 +36,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: quay.io/minio/minio:latest
+    image: quay.io/minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     container_name: yarrow_minio
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
@@ -55,7 +55,7 @@ services:
     restart: unless-stopped
 
   create-bucket:
-    image: quay.io/minio/mc:latest
+    image: quay.io/minio/mc:latest@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     container_name: yarrow_minio_setup
     depends_on:
       minio:
