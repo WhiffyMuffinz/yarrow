@@ -1,0 +1,83 @@
+{
+  // Renovate config for Yarrow
+  // Docs: https://docs.renovatebot.com/configuration-options/
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+
+  // Monorepo layout:
+  // - npm: package.json (root), frontend/package.json
+  // - poetry: backend/pyproject.toml, worker/pyproject.toml
+  // - docker: backend/Dockerfile, worker/Dockerfile, frontend/Dockerfile, docker-compose.yml
+  // - github-actions: .github/workflows/*.yml
+  "enabledManagers": [
+    "npm",
+    "poetry",
+    "dockerfile",
+    "docker-compose",
+    "github-actions",
+    "regex"
+  ],
+
+  // Wait 3 days after a release before proposing it.
+  "minimumReleaseAge": "3 days",
+
+  // Never auto-merge. All updates need manual review and merge.
+  "automerge": false,
+
+  // Keep lock files up to date (npm + poetry)
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+
+  // Catch pinned tools that native managers miss:
+  "regexManagers": [
+    {
+      "description": "Update poetry pip installs in Dockerfiles",
+      "fileMatch": ["(^|/)Dockerfile$"],
+      "matchStrings": ["pip install poetry==(?<currentValue>.*?)\\s"],
+      "depNameTemplate": "poetry",
+      "packageNameTemplate": "poetry",
+      "datasourceTemplate": "pypi"
+    },
+    {
+      "description": "Update poetry pip installs in GitHub Actions",
+      "fileMatch": ["\\.github/workflows/.*\\.ya?ml$"],
+      "matchStrings": ["pip install poetry==(?<currentValue>.*?)[\\s\"']"],
+      "depNameTemplate": "poetry",
+      "packageNameTemplate": "poetry",
+      "datasourceTemplate": "pypi"
+    }
+  ],
+
+  "packageRules": [
+    {
+      "description": "Group frontend npm updates together",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["frontend/package.json"],
+      "groupName": "frontend npm"
+    },
+    {
+      "description": "Group root npm tooling (husky, prettier, lint-staged)",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["package.json"],
+      "excludeFileNames": ["frontend/package.json"],
+      "groupName": "root npm tooling"
+    },
+    {
+      "description": "Group backend + worker Python dependencies",
+      "matchManagers": ["poetry"],
+      "groupName": "python dependencies"
+    },
+    {
+      "description": "Group all Docker image updates",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "groupName": "docker images"
+    },
+    {
+      "description": "Group GitHub Actions updates",
+      "matchManagers": ["github-actions", "regex"],
+      "matchFileNames": [".github/workflows/*.yml", "(^|/)Dockerfile$"],
+      "groupName": "ci tooling"
+    }
+  ]
+}
