@@ -20,7 +20,7 @@
     "dockerfile",
     "docker-compose",
     "github-actions",
-    "regex"
+    "custom.regex"
   ],
 
   // Wait 3 days after a release before proposing it.
@@ -35,8 +35,9 @@
   },
 
   // Catch pinned tools that native managers miss:
-  "regexManagers": [
+  "customManagers": [
     {
+      "customType": "regex",
       "description": "Update poetry pip installs in Dockerfiles",
       "fileMatch": ["(^|/)Dockerfile$"],
       "matchStrings": ["pip install poetry==(?<currentValue>.*?)\\s"],
@@ -45,6 +46,7 @@
       "datasourceTemplate": "pypi"
     },
     {
+      "customType": "regex",
       "description": "Update poetry pip installs in GitHub Actions",
       "fileMatch": ["\\.github/workflows/.*\\.ya?ml$"],
       "matchStrings": ["pip install poetry==(?<currentValue>.*?)[\\s\"']"],
@@ -64,8 +66,7 @@
     {
       "description": "Group root npm tooling (husky, prettier, lint-staged)",
       "matchManagers": ["npm"],
-      "matchFileNames": ["package.json"],
-      "excludeFileNames": ["frontend/package.json"],
+      "matchFileNames": ["package.json", "!frontend/package.json"],
       "groupName": "root npm tooling"
     },
     {
@@ -80,12 +81,9 @@
     },
     {
       "description": "Group GitHub Actions updates",
-      "matchManagers": ["github-actions", "regex"],
-      "matchFileNames": [".github/workflows/*.yml", "(^|/)Dockerfile$"],
+      "matchManagers": ["github-actions", "custom.regex"],
+      "matchFileNames": [".github/workflows/*.yml", "/(^|/)Dockerfile$/"],
       "groupName": "ci tooling"
     }
   ]
 }
-
-
-
