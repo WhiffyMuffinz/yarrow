@@ -2,7 +2,12 @@
   // Renovate config for Yarrow
   // Docs: https://docs.renovatebot.com/configuration-options/
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
+  "extends": ["config:recommended",
+              "docker:pinDigests",
+              "helpers:pinGitHubActionDigests",
+              ":maintainLockFilesWeekly",
+              ":configMigration"
+  ],
 
   // Monorepo layout:
   // - npm: package.json (root), frontend/package.json
