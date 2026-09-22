@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 
 # Install poetry
-RUN pip install poetry==1.8.2
+RUN pip install poetry==2.4.3
 
 # Copy dependencies
 COPY pyproject.toml poetry.lock* ./
