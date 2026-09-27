@@ -64,7 +64,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+    restart: "no"
 
   rustfs-volumes:
     image: alpine:3.22
@@ -76,7 +76,7 @@ services:
     restart: "no"
 
   create-bucket:
-    image: rclone/rclone:1.75
+    image: rustfs/rc:v0.1.36
     container_name: yarrow_s3_setup
     depends_on:
       rustfs:
@@ -85,25 +85,9 @@ services:
       - /bin/sh
       - -c
       - >-
-        rclone config create rustfs s3 provider Minio access_key_id ${S3_ACCESS_KEY:-rustfsadmin} secret_access_key ${S3_SECRET_KEY:-rustfsadmin} endpoint http://rustfs:9000
-        && rclone mkdir rustfs:${S3_BUCKET_NAME:-yarrow-documents}
-
-  set-bucket-policy:
-    image: amazon/aws-cli:2.36.50
-    container_name: yarrow_s3_policy
-    environment:
-      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-rustfsadmin}
-      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-rustfsadmin}
-      AWS_DEFAULT_REGION: us-east-1
-    depends_on:
-      create-bucket:
-        condition: service_completed_successfully
-    entrypoint:
-      - /bin/sh
-      - -c
-      - >-
-        aws configure set default.s3.addressing_style path
-        && aws s3api put-bucket-policy --endpoint-url http://rustfs:9000 --bucket ${S3_BUCKET_NAME:-yarrow-documents} --policy '{"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"AWS": ["*"]}, "Action": ["s3:ListBucket"], "Resource": ["arn:aws:s3:::${S3_BUCKET_NAME:-yarrow-documents}"]}, {"Effect": "Allow", "Principal": {"AWS": ["*"]}, "Action": ["s3:GetObject"], "Resource": ["arn:aws:s3:::${S3_BUCKET_NAME:-yarrow-documents}/*"]}]}'
+        rc alias set rustfs http://rustfs:9000 ${S3_ACCESS_KEY:-rustfsadmin} ${S3_SECRET_KEY:-rustfsadmin}
+        && rc mb rustfs/${S3_BUCKET_NAME:-yarrow-documents} --ignore-existing
+        && rc anonymous set public rustfs/${S3_BUCKET_NAME:-yarrow-documents}
 
   mailpit:
     image: axllent/mailpit:latest
