@@ -128,10 +128,15 @@ async def upload_documents(
             # Object first: an object with no row is a cheap orphan for the
             # sweeper, whereas a row with no object breaks the job.
             storage.upload_file(upload.file, key)
-        except Exception as exc:
+        except Exception:
+            # The storage error can name buckets, endpoints or access keys, so
+            # it goes to the server log only; the user gets a plain reason.
             logger.exception(f"Storing {filename} failed")
             rejected.append(
-                UploadRejected(filename=filename, reason=f"Could not be stored: {exc}")
+                UploadRejected(
+                    filename=filename,
+                    reason="Could not be stored right now. Please try again.",
+                )
             )
             continue
 
