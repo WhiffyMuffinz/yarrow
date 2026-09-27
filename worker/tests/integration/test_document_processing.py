@@ -178,6 +178,7 @@ class TestDocumentProcessing:
         "single_page.jpg",
         "three_frame.gif",
         "three_page.pdf",
+        "sample_multipage_table.pdf",
         "unsupported.txt",
     ]
     merge_consecutive_tables: ClassVar[list[bool]] = [

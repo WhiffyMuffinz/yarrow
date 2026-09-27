@@ -6,7 +6,7 @@ from yarrow_db.models import Document, Job, Page, Region, RegionTable, Table, Wa
 from yarrow_db.models.region import RegionImage, RegionText
 from yarrow_db.models.table import TableCell
 from yarrow_db.session import session_scope
-from yarrow_db.utils.table_utils import is_consecutive, merge_two_tables
+from yarrow_db.utils.table_utils import insert_region_table, is_consecutive, merge_two_tables
 from yarrow_storage import ObjectNotFoundError, get_storage
 
 from app.celery_app import celery_app
@@ -114,17 +114,12 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
                 .all()
             )
 
-            region_tables = (
-                session.execute(
-                    select(RegionTable).where((RegionTable.region_id.in_(region_ids)) | (RegionTable.table_id.in_([t.id for t in tables])))
-                )
-                .scalars()
-                .all()
-            )
+            # Region tables that are themselves on the targeted pages
+            region_table_ids = select(RegionTable.id).where(RegionTable.region_id.in_(region_ids))
 
             # Delete all objects related to the targeted pages
             statements = [
-                delete(TableCell).where(TableCell.region_table_id.in_([rt.id for rt in region_tables])),
+                delete(TableCell).where(TableCell.region_table_id.in_(region_table_ids)),
                 delete(RegionTable).where(RegionTable.region_id.in_(region_ids)),
                 delete(RegionText).where(RegionText.region_id.in_(region_ids)),
                 delete(RegionImage).where(RegionImage.region_id.in_(region_ids)),
@@ -149,10 +144,12 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
                     remaining_count = session.execute(select(func.count(RegionTable.id)).where(RegionTable.table_id == table.id)).scalar_one()
 
                     if remaining_count == 1:
-                        table.stitched = False
+                        table.is_stitched = False
 
                     # Updates the row count of the table to reflect the remaining region tables
-                    table.row_count = session.execute(select(func.sum(RegionTable.row_count)).where(RegionTable.table_id == table.id)).scalar_one()
+                    table.row_count = session.execute(
+                        select(func.sum(RegionTable.row_end - RegionTable.row_start)).where(RegionTable.table_id == table.id)
+                    ).scalar_one()
 
             all_objects = parser.to_model_objects(document, target_pages=page_to_process, merge_consecutive_tables=merge_consecutive_tables)
             session.add_all(all_objects)
@@ -207,16 +204,21 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
 
                     current_table = obj.table
 
-                    # Merge the current table with the previous table if they are consecutive
-                    if prev_region_table is not None and is_consecutive(session, prev_region_table, obj):
-                        merge_two_tables(session, prev_region_table.table, current_table)
-                        current_table = prev_region_table.table
+                    prev_consecutive = prev_region_table is not None and is_consecutive(session, prev_region_table, obj)
+                    next_consecutive = next_region_table is not None and is_consecutive(session, obj, next_region_table)
 
-                    # Merge the current table with the next table if they are consecutive
-                    if next_region_table is not None and is_consecutive(session, obj, next_region_table):
-                        merge_two_tables(session, current_table, next_region_table.table)
+                    if prev_consecutive and next_consecutive and prev_region_table.table_id == next_region_table.table_id:
+                        # The reprocessed page sat in the middle of a table: insert the new region table back into the existing table.
+                        insert_region_table(session, prev_region_table.table, obj, insert_after=prev_region_table)
+                    else:
+                        # Merge the current table with the previous table if they are consecutive
+                        if prev_consecutive:
+                            merge_two_tables(session, prev_region_table.table, current_table)
+                            current_table = prev_region_table.table
 
-                    # TODO: Merge with hollowed table
+                        # Merge the current table with the next table if they are consecutive
+                        if next_consecutive:
+                            merge_two_tables(session, current_table, next_region_table.table)
 
             job = session.get(Job, UUID(job_id))
             job.pages_processed = succeeded

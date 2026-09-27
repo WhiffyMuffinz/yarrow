@@ -186,3 +186,51 @@ def merge_two_tables(session: Session, table_prev: Table, table_next: Table) -> 
 
     session.delete(table_next)
     session.flush()
+
+
+def insert_region_table(session: Session, table: Table, region_table: RegionTable, insert_after: RegionTable) -> None:
+    """
+    Inserts region_table into table immediately after insert_after.
+
+    Args:
+        session: SQLAlchemy session object.
+        table: The table to splice region_table into.
+        region_table: The region table to move into table.
+        insert_after: The region table already in table that region_table should immediately follow.
+    """
+    if region_table.table_id == table.id:
+        return
+
+    orphaned_table = region_table.table
+    inserted_rows = region_table.row_end - region_table.row_start
+    insertion_order = insert_after.reading_order + 1
+
+    later_region_tables = (
+        session.query(RegionTable)
+        .filter(RegionTable.table_id == table.id, RegionTable.reading_order >= insertion_order)
+        .order_by(RegionTable.reading_order)
+        .all()
+    )
+
+    for rt in later_region_tables:
+        rt.reading_order += 1
+        rt.row_start += inserted_rows
+        rt.row_end += inserted_rows
+
+    region_table.table = table
+    region_table.reading_order = insertion_order
+    region_table.row_start = insert_after.row_end
+    region_table.row_end = insert_after.row_end + inserted_rows
+
+    table.row_count = (table.row_count or 0) + inserted_rows
+    table.is_stitched = True
+
+    session.flush()
+
+    # Clean up the now-empty table region_table used to belong to, mirroring
+    # the anti-orphan check done when a reprocessed page's rows are deleted.
+    if orphaned_table is not None and orphaned_table.id != table.id:
+        remaining = session.query(RegionTable.id).filter(RegionTable.table_id == orphaned_table.id).first()
+        if remaining is None:
+            session.delete(orphaned_table)
+            session.flush()
