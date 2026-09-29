@@ -21,6 +21,7 @@ from .common import BBox, StrictModel
 from .document import (
     DocumentDetail,
     DocumentOut,
+    DocumentRename,
     JobOut,
     PageOut,
     UploadAccepted,
@@ -51,6 +52,7 @@ __all__ = [
     "BBox",
     "DocumentDetail",
     "DocumentOut",
+    "DocumentRename",
     "DocumentStats",
     "DocumentTree",
     "JobOut",

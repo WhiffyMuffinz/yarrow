@@ -22,6 +22,20 @@ export async function listDocuments(): Promise<DocumentSummary[]> {
   return res.data;
 }
 
+/**
+ * Rename a document (US-39). Only the display name changes. Returns the
+ * document as saved, since the server trims the name.
+ */
+export async function renameDocument(
+  id: string,
+  filename: string
+): Promise<DocumentSummary> {
+  const res = await api.patch<DocumentSummary>(`/api/v1/documents/${id}`, {
+    filename,
+  });
+  return res.data;
+}
+
 /** The API sends naive UTC timestamps; mark them as UTC before parsing. */
 export function parseApiDate(value: string): Date {
   const utc = /[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`;

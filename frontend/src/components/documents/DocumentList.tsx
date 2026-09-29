@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
 import { StatusBadge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import {
   listDocuments,
   parseApiDate,
+  renameDocument,
   type DocumentSummary,
 } from '@/lib/documents';
 import { cn } from '@/lib/cn';
@@ -96,36 +98,181 @@ export function DocumentList({ refreshKey = 0 }: { refreshKey?: number }) {
   return (
     <div className="space-y-3">
       {warning}
-      <DocumentRows documents={documents} />
+      <DocumentRows
+        documents={documents}
+        onRenamed={(renamed) =>
+          setDocuments((current) =>
+            (current ?? []).map((doc) =>
+              doc.id === renamed.id ? renamed : doc
+            )
+          )
+        }
+      />
     </div>
   );
 }
 
-function DocumentRows({ documents }: { documents: DocumentSummary[] }) {
+function DocumentRows({
+  documents,
+  onRenamed,
+}: {
+  documents: DocumentSummary[];
+  onRenamed: (doc: DocumentSummary) => void;
+}) {
   return (
     <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
       {documents.map((doc) => (
-        <li
-          key={doc.id}
-          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3"
-        >
-          <div className="min-w-0">
-            <Link
-              href={`/documents/${doc.id}`}
-              className="block truncate font-medium text-slate-900 underline-offset-4 hover:underline"
-            >
-              {doc.filename}
-            </Link>
-            <p className="text-xs text-slate-500">
-              {formatBytes(doc.file_size_bytes)}
-              {doc.created_at && <> · Uploaded {formatDate(doc.created_at)}</>}
-            </p>
-            <FailureNote doc={doc} />
-          </div>
-          <StatusBadge status={doc.status} />
-        </li>
+        <DocumentRow key={doc.id} doc={doc} onRenamed={onRenamed} />
       ))}
     </ul>
+  );
+}
+
+/** Mirrors the server's rules, so most mistakes are caught before sending. */
+function checkName(name: string): string | null {
+  if (!name) return 'Name cannot be empty.';
+  if (name.length > 255) return 'Name must be 255 characters or fewer.';
+  // eslint-disable-next-line no-control-regex
+  if (/[\\/\u0000-\u001f\u007f]/.test(name)) {
+    return 'Name cannot contain slashes or control characters.';
+  }
+  return null;
+}
+
+function DocumentRow({
+  doc,
+  onRenamed,
+}: {
+  doc: DocumentSummary;
+  onRenamed: (doc: DocumentSummary) => void;
+}) {
+  const inputId = useId();
+  const errorId = useId();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(doc.filename);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const renameButton = useRef<HTMLButtonElement>(null);
+
+  function startEditing() {
+    setDraft(doc.filename);
+    setError(null);
+    setEditing(true);
+  }
+
+  function stopEditing() {
+    setEditing(false);
+    setError(null);
+    // Put focus back where the user started.
+    requestAnimationFrame(() => renameButton.current?.focus());
+  }
+
+  async function save() {
+    const name = draft.trim();
+    if (name === doc.filename) return stopEditing();
+    const problem = checkName(name);
+    if (problem) return setError(problem);
+    setSaving(true);
+    try {
+      onRenamed(await renameDocument(doc.id, name));
+      stopEditing();
+    } catch (err) {
+      // The old name stays; say why the new one wasn't saved (US-39).
+      const apiError = toApiError(err);
+      setError(apiError.fields.filename ?? apiError.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3">
+      <div className="min-w-0 flex-1">
+        {editing ? (
+          <form
+            className="space-y-1"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save();
+            }}
+          >
+            <label htmlFor={inputId} className="sr-only">
+              New name for {doc.filename}
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                id={inputId}
+                value={draft}
+                maxLength={255}
+                autoFocus
+                disabled={saving}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? errorId : undefined}
+                onChange={(event) => setDraft(event.target.value)}
+                onFocus={(event) => {
+                  // Select the name but not the extension, so typing
+                  // replaces "report" in "report.pdf".
+                  const dot = event.target.value.lastIndexOf('.');
+                  event.target.setSelectionRange(
+                    0,
+                    dot > 0 ? dot : event.target.value.length
+                  );
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') stopEditing();
+                }}
+                className={cn(
+                  'min-w-0 flex-1 rounded-lg border px-2 py-1 text-sm text-slate-900',
+                  error ? 'border-red-600' : 'border-slate-300'
+                )}
+              />
+              <Button type="submit" className="w-auto px-3" loading={saving}>
+                Save
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-auto px-3"
+                disabled={saving}
+                onClick={stopEditing}
+              >
+                Cancel
+              </Button>
+            </div>
+            {error && (
+              <p id={errorId} role="alert" className="text-xs text-red-700">
+                {error}
+              </p>
+            )}
+          </form>
+        ) : (
+          <Link
+            href={`/documents/${doc.id}`}
+            className="block truncate font-medium text-slate-900 underline-offset-4 hover:underline"
+          >
+            {doc.filename}
+          </Link>
+        )}
+        <p className="text-xs text-slate-500">
+          {formatBytes(doc.file_size_bytes)}
+          {doc.created_at && <> · Uploaded {formatDate(doc.created_at)}</>}
+        </p>
+        <FailureNote doc={doc} />
+      </div>
+      <div className="flex items-center gap-3">
+        {!editing && (
+          <Button
+            ref={renameButton}
+            variant="link"
+            onClick={startEditing}
+            aria-label={`Rename ${doc.filename}`}
+          >
+            Rename
+          </Button>
+        )}
+        <StatusBadge status={doc.status} />
+      </div>
+    </li>
   );
 }
 
