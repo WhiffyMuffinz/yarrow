@@ -183,6 +183,57 @@ def split_table(session: Session, table: Table) -> list[Table]:
     return new_tables
 
 
+def split_at_gaps(session: Session, table: Table) -> list[Table]:
+    """Splits a table wherever its remaining parts skip a page, and repacks the row ranges
+
+    Args:
+        session: SQLAlchemy session object
+        table: The table to split
+
+    Returns:
+        The resulting tables in reading order (empty if the table was deleted)
+    """
+    parts = ordered_parts(session, table)
+
+    if not parts:
+        session.delete(table)
+        session.flush()
+        return []
+
+    runs: list[list[RegionTable]] = [[parts[0]]]
+    for part in parts[1:]:
+        if part.region.page.page_number == runs[-1][-1].region.page.page_number + 1:
+            runs[-1].append(part)
+        else:
+            runs.append([part])
+
+    result: list[Table] = []
+    for index, run in enumerate(runs):
+        if index == 0:
+            run_table = table
+        else:
+            run_table = Table(id=uuid.uuid4(), document_id=table.document_id, title=None)
+            session.add(run_table)
+
+        # Repack the run's row ranges so its global rows start at 0 with no holes
+        row_offset = 0
+        for reading_order, part in enumerate(run):
+            rows = row_span(part)
+            part.table = run_table
+            part.reading_order = reading_order
+            part.row_start = row_offset
+            part.row_end = row_offset + rows - 1
+            row_offset += rows
+
+        run_table.row_count = row_offset
+        run_table.col_count = max(col_span(part) for part in run)
+        run_table.is_stitched = len(run) > 1
+        result.append(run_table)
+
+    session.flush()
+    return result
+
+
 def split_consecutive_tables(session: Session, document_id: uuid.UUID) -> list[Table]:
     """
     Splits all stitched tables into individual tables.
