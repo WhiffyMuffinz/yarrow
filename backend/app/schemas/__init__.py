@@ -6,7 +6,10 @@ for the endpoints written against the original single-module layout.
 
 from .auth import (
     MessageResponse,
+    NewPassword,
     NormalizedEmail,
+    PasswordResetConfirm,
+    PasswordResetRequest,
     ResendVerificationRequest,
     Token,
     UserCreate,
@@ -55,9 +58,12 @@ __all__ = [
     "MergeCandidatesOut",
     "MergeTablesRequest",
     "MessageResponse",
+    "NewPassword",
     "NormalizedEmail",
     "PageNode",
     "PageOut",
+    "PasswordResetConfirm",
+    "PasswordResetRequest",
     "RegionNode",
     "ResendVerificationRequest",
     "RowSource",
