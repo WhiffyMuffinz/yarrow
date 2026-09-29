@@ -5,9 +5,7 @@ import re
 import sys
 from html.parser import HTMLParser
 
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..")))
 
 import filetype
 
@@ -118,9 +116,7 @@ def page_graph(page_number, pruned_page):
                 "is_table": is_table,
                 # A table's content becomes cells, and an image's becomes
                 # nothing; everything else with content gets a RegionText.
-                "has_text": bool(content)
-                and not is_table
-                and label not in IMAGE_LABELS,
+                "has_text": bool(content) and not is_table and label not in IMAGE_LABELS,
             }
         )
 
@@ -143,6 +139,7 @@ def page_graph(page_number, pruned_page):
 
     for part in parts:
         part["table_count_on_page"] = len(parts)
+        part["page_total_reading_order"] = len(blocks) - 1
 
     return {"page_number": page_number, "regions": regions}, parts
 
@@ -155,8 +152,8 @@ def continues(part, previous):
     """
     return (
         part["page_number"] == previous["page_number"] + 1
-        and previous["position_on_page"] == previous["table_count_on_page"] - 1
-        and part["position_on_page"] == 0
+        and previous["region_reading_order"] == previous["page_total_reading_order"]
+        and part["region_reading_order"] == 0
         and part["col_count"] > 0
         and part["col_count"] == previous["col_count"]
     )
@@ -251,7 +248,7 @@ def pruned_for(parser):
 
 def record(name):
     """Record ground truth for a given document."""
-
+    
     path = os.path.join(TEST_DOCS_DIR, name)
     with open(path, "rb") as handle:
         data = handle.read()
@@ -281,14 +278,15 @@ def record(name):
     return truth
 
 
+
 def dumps(truth):
     """Dump the ground truth as a JSON string with compact cell lines."""
-
+    
     # Identifies cell arrays
     cell_lines = re.compile(
         r"\[\s+(-?\d+),\s+(-?\d+),\s+(-?\d+),\s+(-?\d+),\s+(true|false)\s+\]"
     )
-
+    
     # Dump the JSON with compact cell lines
     return cell_lines.sub(r"[\1, \2, \3, \4, \5]", json.dumps(truth, indent=2)) + "\n"
 
@@ -304,8 +302,7 @@ def main(names):
     names = names or sorted(
         name
         for name in os.listdir(TEST_DOCS_DIR)
-        if os.path.isfile(os.path.join(TEST_DOCS_DIR, name))
-        and not name.startswith(".")
+        if os.path.isfile(os.path.join(TEST_DOCS_DIR, name)) and not name.startswith(".")
     )
 
     for name in names:
