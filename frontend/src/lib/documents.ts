@@ -36,6 +36,16 @@ export async function renameDocument(
   return res.data;
 }
 
+/**
+ * Cancel a queued document's processing (US-42). The server refuses (409)
+ * once a worker has started it, so this can fail even if the list still
+ * showed "Queued" a moment ago.
+ */
+export async function cancelProcessing(id: string): Promise<DocumentSummary> {
+  const res = await api.post<DocumentSummary>(`/api/v1/documents/${id}/cancel`);
+  return res.data;
+}
+
 /** The API sends naive UTC timestamps; mark them as UTC before parsing. */
 export function parseApiDate(value: string): Date {
   const utc = /[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`;

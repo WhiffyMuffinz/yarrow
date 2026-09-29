@@ -9,6 +9,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import {
   listDocuments,
   parseApiDate,
+  cancelProcessing,
   renameDocument,
   type DocumentSummary,
 } from '@/lib/documents';
@@ -100,10 +101,10 @@ export function DocumentList({ refreshKey = 0 }: { refreshKey?: number }) {
       {warning}
       <DocumentRows
         documents={documents}
-        onRenamed={(renamed) =>
+        onChanged={(changed) =>
           setDocuments((current) =>
             (current ?? []).map((doc) =>
-              doc.id === renamed.id ? renamed : doc
+              doc.id === changed.id ? changed : doc
             )
           )
         }
@@ -114,15 +115,15 @@ export function DocumentList({ refreshKey = 0 }: { refreshKey?: number }) {
 
 function DocumentRows({
   documents,
-  onRenamed,
+  onChanged,
 }: {
   documents: DocumentSummary[];
-  onRenamed: (doc: DocumentSummary) => void;
+  onChanged: (doc: DocumentSummary) => void;
 }) {
   return (
     <ul className="divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white">
       {documents.map((doc) => (
-        <DocumentRow key={doc.id} doc={doc} onRenamed={onRenamed} />
+        <DocumentRow key={doc.id} doc={doc} onChanged={onChanged} />
       ))}
     </ul>
   );
@@ -141,10 +142,10 @@ function checkName(name: string): string | null {
 
 function DocumentRow({
   doc,
-  onRenamed,
+  onChanged,
 }: {
   doc: DocumentSummary;
-  onRenamed: (doc: DocumentSummary) => void;
+  onChanged: (doc: DocumentSummary) => void;
 }) {
   const inputId = useId();
   const errorId = useId();
@@ -153,6 +154,22 @@ function DocumentRow({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const renameButton = useRef<HTMLButtonElement>(null);
+  const [canceling, setCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  async function cancel() {
+    setCanceling(true);
+    setCancelError(null);
+    try {
+      onChanged(await cancelProcessing(doc.id));
+    } catch (err) {
+      // Usually a worker picked it up first; the list's next refresh will
+      // show it as processing.
+      setCancelError(toApiError(err).message);
+    } finally {
+      setCanceling(false);
+    }
+  }
 
   function startEditing() {
     setDraft(doc.filename);
@@ -174,7 +191,7 @@ function DocumentRow({
     if (problem) return setError(problem);
     setSaving(true);
     try {
-      onRenamed(await renameDocument(doc.id, name));
+      onChanged(await renameDocument(doc.id, name));
       stopEditing();
     } catch (err) {
       // The old name stays; say why the new one wasn't saved (US-39).
@@ -258,8 +275,24 @@ function DocumentRow({
           {doc.created_at && <> · Uploaded {formatDate(doc.created_at)}</>}
         </p>
         <FailureNote doc={doc} />
+        {cancelError && (
+          <p role="alert" className="mt-0.5 text-xs text-red-700">
+            {cancelError}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-3">
+        {/* Only while queued: a started or finished job can't be canceled. */}
+        {doc.status === 'queued' && !editing && (
+          <Button
+            variant="link"
+            onClick={cancel}
+            loading={canceling}
+            aria-label={`Cancel processing of ${doc.filename}`}
+          >
+            Cancel
+          </Button>
+        )}
         {!editing && (
           <Button
             ref={renameButton}

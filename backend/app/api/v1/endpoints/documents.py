@@ -21,7 +21,7 @@ from yarrow_storage import ObjectNotFoundError, get_storage
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.queue import enqueue_document_processing
+from app.core.queue import enqueue_document_processing, revoke_document_processing
 from app.core.security import get_current_user
 from app.deps import DocumentAccess, require_edit_access, require_read_access
 from app.schemas import (
@@ -383,6 +383,56 @@ async def rename_document(
     document = access.document
     document.filename = body.filename
     await db.commit()
+    await db.refresh(document)
+    return document
+
+
+@router.post("/{document_id}/cancel", response_model=DocumentOut)
+async def cancel_document_processing(
+    access: DocumentAccess = Depends(require_edit_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Cancel a document's queued processing job (US-42).
+
+    Only a queued job can be canceled; once a worker has started it, or it has
+    finished, this is a 409 and nothing changes. The job row is locked, and the
+    worker locks the same row before starting, so a cancel and a worker
+    picking the job up at the same moment cannot both succeed.
+    """
+    document = access.document
+    job = (
+        await db.execute(
+            select(Job)
+            .where(Job.document_id == document.id)
+            .order_by(Job.created_at.desc())
+            .limit(1)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one_or_none()
+    if job is None or job.status != "queued":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only documents waiting in the queue can be canceled.",
+        )
+
+    job.status = "canceled"
+    document.status = "canceled"
+    document.error_message = None
+    task_id = job.celery_task_id
+    await db.commit()
+
+    # After the commit, so a worker that gets the message anyway sees the
+    # canceled row and skips it.
+    if task_id:
+        try:
+            # A blocking network call; kept off the event loop so a slow
+            # broker cannot stall other requests.
+            await run_in_threadpool(revoke_document_processing, task_id)
+        except Exception:
+            # The cancel already stands; the worker's check covers this.
+            logger.exception(f"Revoking task {task_id} failed")
+
     await db.refresh(document)
     return document
 
