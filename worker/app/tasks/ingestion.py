@@ -1,8 +1,16 @@
 import logging
 from uuid import UUID
 
-from yarrow_db.models import Document, Job
+from sqlalchemy import delete, func, select
+from yarrow_db.models import Document, Job, Page, Region, RegionTable, Table, Warning
+from yarrow_db.models.region import RegionImage, RegionText
+from yarrow_db.models.table import TableCell
 from yarrow_db.session import session_scope
+from yarrow_db.utils.table_utils import (
+    insert_region_table,
+    is_consecutive,
+    merge_two_tables,
+)
 from yarrow_storage import ObjectNotFoundError, get_storage
 
 from app.celery_app import celery_app
@@ -10,20 +18,21 @@ from app.celery_app import celery_app
 # from app.pipeline.document_parser import DocumentParser
 from app.pipeline.document_parser import DocumentParser
 
+# from app.pipeline.document_parser import DocumentParser
+
 logger = logging.getLogger(__name__)
 
-# How many page numbers to name before truncating. A 400-page scan processed
-# while the cluster was down would otherwise put 400 numbers in a message the
-# UI renders inline.
+# How many page numbers to name before truncating
 MAX_REPORTED_FAILED_PAGES = 10
 
 
 class AllPagesFailedError(Exception):
-    """Every page failed inference.
+    """Every page this run attempted failed inference.
 
     Raised after the job, document and page rows are committed, so that Celery
     records the task as FAILURE without the generic handler replacing the
-    per-page detail already stored.
+    per-page detail already stored. On a partial reprocess this means the job
+    failed while the document as a whole may still be usable.
     """
 
 
@@ -33,6 +42,17 @@ def _describe_failed_pages(failed: list[int], total: int) -> str:
         shown += f", ... (+{len(failed) - MAX_REPORTED_FAILED_PAGES} more)"
 
     return f"{len(failed)} of {total} page(s) failed: {shown}"
+
+
+def _document_state(page_states: list[tuple[int, str | None]], total_pages: int) -> tuple[str, str | None]:
+    """The document's status and error summary, derived from its page rows"""
+    failed = sorted(number for number, status in page_states if status == "failed")
+    any_completed = any(status == "completed" for _, status in page_states)
+
+    return (
+        "completed" if any_completed else "failed",
+        _describe_failed_pages(failed, total_pages) if failed else None,
+    )
 
 
 def _mark_failed(job_id: str, message: str) -> None:
@@ -48,7 +68,17 @@ def _mark_failed(job_id: str, message: str) -> None:
 
 
 @celery_app.task(bind=True)
-def process_document_task(self, job_id: str, merge_consecutive_tables: bool = False):
+def process_document_task(self, job_id: str, page_to_process: tuple | None = None, merge_consecutive_tables: bool = False):
+    """
+    Processes a document for the given job ID.
+
+    Args:
+        self: The Celery task instance.
+        job_id: The ID of the job to process.
+        page_to_process: Optional tuple specifying which pages to process. This expects a tuple of 1-based page numbers. Defaults to processing every page.
+        merge_consecutive_tables: Whether to merge consecutive tables across pages.
+    """
+
     logger.info(f"Starting processing for job {job_id}")
     storage_key = ""
     try:
@@ -76,31 +106,148 @@ def process_document_task(self, job_id: str, merge_consecutive_tables: bool = Fa
             job.current_stage = "parsing"
             job.total_pages = len(parser.pages)
 
-        parser.process_sync()
+        parser.process_sync(page_to_process)
 
         failed_pages = parser.failed_page_numbers
         total_pages = len(parser.pages)
-        succeeded = total_pages - len(failed_pages)
-        summary = (
-            _describe_failed_pages(failed_pages, total_pages) if failed_pages else None
-        )
+        attempted = len(page_to_process) if page_to_process is not None else total_pages
+        succeeded = attempted - len(failed_pages)
+        summary = _describe_failed_pages(failed_pages, attempted) if failed_pages else None
+
+        # Attempting nothing is a no-op, not a failure
+        run_failed = bool(attempted) and not succeeded
 
         with session_scope() as session:
-            document = session.get(Document, document_id)
-            all_objects = parser.to_model_objects(
-                document, merge_consecutive_tables=merge_consecutive_tables
+            document = session.get(Document, document_id, with_for_update=True)
+
+            page_ids = select(Page.id).where(
+                Page.document_id == document_id, (Page.page_number.in_(page_to_process) if page_to_process is not None else True)
             )
+
+            region_ids = select(Region.id).where(Region.page_id.in_(page_ids))
+
+            tables = (
+                session.execute(select(Table).join(RegionTable).where(RegionTable.region_id.in_(region_ids), RegionTable.table_id == Table.id))
+                .scalars()
+                .all()
+            )
+
+            # Region tables that are themselves on the targeted pages
+            region_table_ids = select(RegionTable.id).where(RegionTable.region_id.in_(region_ids))
+
+            # Delete all objects related to the targeted pages
+            statements = [
+                delete(TableCell).where(TableCell.region_table_id.in_(region_table_ids)),
+                delete(RegionTable).where(RegionTable.region_id.in_(region_ids)),
+                delete(RegionText).where(RegionText.region_id.in_(region_ids)),
+                delete(RegionImage).where(RegionImage.region_id.in_(region_ids)),
+                delete(Warning).where(Warning.page_id.in_(page_ids)),
+                delete(Region).where(Region.id.in_(region_ids)),
+                delete(Page).where(Page.id.in_(page_ids)),
+            ]
+
+            for statement in statements:
+                session.execute(statement)
+
+            session.flush()
+
+            # Update table objects
+            for table in tables:
+                if remaining_region_table := session.execute(
+                    select(RegionTable.id).where(RegionTable.table_id == table.id).limit(1)
+                ).scalar_one_or_none():
+                    remaining_count = session.execute(select(func.count(RegionTable.id)).where(RegionTable.table_id == table.id)).scalar_one()
+
+                    if remaining_count == 1:
+                        table.is_stitched = False
+
+                    # Updates the row count of the table to reflect the remaining region tables
+                    table.row_count = session.execute(
+                        select(func.sum(RegionTable.row_end - RegionTable.row_start + 1)).where(RegionTable.table_id == table.id)
+                    ).scalar_one()
+
+                else:
+                    session.delete(table)
+            all_objects = parser.to_model_objects(document, target_pages=page_to_process, merge_consecutive_tables=merge_consecutive_tables)
             session.add_all(all_objects)
+            session.flush()
+
+            if merge_consecutive_tables:
+                for obj in all_objects:
+                    if not isinstance(obj, RegionTable):
+                        continue
+
+                    page_number = obj.region.page.page_number
+                    prev_page = (
+                        session.query(Page)
+                        .filter(
+                            Page.document_id == document_id,
+                            Page.page_number == page_number - 1,
+                        )
+                        .first()
+                    )
+                    next_page = (
+                        session.query(Page)
+                        .filter(
+                            Page.document_id == document_id,
+                            Page.page_number == page_number + 1,
+                        )
+                        .first()
+                    )
+
+                    # Gets the region table in the previous page that has the highest reading order
+                    prev_region_table = None
+                    if prev_page is not None:
+                        prev_max_reading_order = session.query(func.max(Region.reading_order)).filter(Region.page_id == prev_page.id).scalar()
+                        if prev_max_reading_order is not None:
+                            prev_region_table = (
+                                session.query(RegionTable)
+                                .join(Region)
+                                .filter(Region.page_id == prev_page.id, Region.reading_order == prev_max_reading_order)
+                                .first()
+                            )
+
+                    # Gets the region table in the next page that has the lowest reading order
+                    next_region_table = None
+                    if next_page is not None:
+                        next_min_reading_order = session.query(func.min(Region.reading_order)).filter(Region.page_id == next_page.id).scalar()
+                        if next_min_reading_order is not None:
+                            next_region_table = (
+                                session.query(RegionTable)
+                                .join(Region)
+                                .filter(Region.page_id == next_page.id, Region.reading_order == next_min_reading_order)
+                                .first()
+                            )
+
+                    current_table = obj.table
+
+                    prev_consecutive = prev_region_table is not None and is_consecutive(session, prev_region_table, obj)
+                    next_consecutive = next_region_table is not None and is_consecutive(session, obj, next_region_table)
+
+                    if prev_consecutive and next_consecutive and prev_region_table.table_id == next_region_table.table_id:
+                        # The reprocessed page sat in the middle of a table: insert the new region table back into the existing table.
+                        insert_region_table(session, prev_region_table.table, obj, insert_after=prev_region_table)
+                    else:
+                        # Merge the current table with the previous table if they are consecutive
+                        if prev_consecutive:
+                            merge_two_tables(session, prev_region_table.table, current_table)
+                            current_table = prev_region_table.table
+
+                        # Merge the current table with the next table if they are consecutive
+                        if next_consecutive:
+                            merge_two_tables(session, current_table, next_region_table.table)
+
+            page_states = session.execute(select(Page.page_number, Page.status).where(Page.document_id == document_id)).all()
 
             job = session.get(Job, UUID(job_id))
-            job.pages_processed = succeeded
+            job.pages_processed = sum(status == "completed" for _, status in page_states)
             job.error_message = summary
-            job.current_stage = "finished" if succeeded else "parsing"
-            job.status = "completed" if succeeded else "failed"
-            document.status = "completed" if succeeded else "failed"
-            document.error_message = summary
+            job.current_stage = "parsing" if run_failed else "finished"
+            job.status = "failed" if run_failed else "completed"
 
-        if not succeeded:
+            document.status, document.error_message = _document_state(page_states, document.page_count or total_pages)
+
+        if run_failed:
             raise AllPagesFailedError(summary or "no pages were produced")
 
         if failed_pages:
