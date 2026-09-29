@@ -10,6 +10,7 @@ import {
   parseApiDate,
   type DocumentSummary,
 } from '@/lib/documents';
+import { cn } from '@/lib/cn';
 import { toApiError } from '@/lib/errors';
 import { formatBytes } from '@/lib/uploads';
 
@@ -119,10 +120,33 @@ function DocumentRows({ documents }: { documents: DocumentSummary[] }) {
               {formatBytes(doc.file_size_bytes)}
               {doc.created_at && <> · Uploaded {formatDate(doc.created_at)}</>}
             </p>
+            <FailureNote doc={doc} />
           </div>
           <StatusBadge status={doc.status} />
         </li>
       ))}
     </ul>
+  );
+}
+
+/**
+ * Why processing failed (US-11). The server only sends reasons written for
+ * users. A completed document can also carry a note when some of its pages
+ * failed; it stays "Completed" and the note is shown as a warning, not an
+ * error.
+ */
+function FailureNote({ doc }: { doc: DocumentSummary }) {
+  if (!doc.error_message) return null;
+  const failed = doc.status === 'failed';
+  return (
+    <p
+      className={cn(
+        'mt-0.5 text-xs',
+        failed ? 'text-red-700' : 'text-amber-800'
+      )}
+    >
+      {!failed && 'Some pages could not be read: '}
+      {doc.error_message}
+    </p>
   );
 }

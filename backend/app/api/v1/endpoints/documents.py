@@ -27,11 +27,18 @@ from app.deps import DocumentAccess, require_read_access
 from app.schemas import (
     DocumentDetail,
     DocumentOut,
+    JobOut,
+    PageOut,
     UploadAccepted,
     UploadRejected,
     UploadResponse,
 )
 from app.services.export import content_disposition, display_stem, safe_stem
+from app.services.failure_messages import (
+    DOCUMENT_FAILED_MESSAGE,
+    QUEUE_FAILED_MESSAGE,
+    public_error_message,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -44,10 +51,6 @@ ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif"}
 # above and with the frontend's ACCEPTED_TYPES in src/lib/uploads.ts.
 ACCEPTED_TYPES_TEXT = "PDF, PNG, JPEG and GIF"
 MAX_UPLOAD_ID_LENGTH = 64
-QUEUE_FAILED_MESSAGE = (
-    "The file was uploaded, but processing could not be started. "
-    "Please try again later."
-)
 CONTENT_TYPE_BY_EXTENSION = {
     "pdf": "application/pdf",
     "png": "image/png",
@@ -91,7 +94,9 @@ async def _find_earlier_upload(
         filename=document.filename,
         file_size_bytes=document.file_size_bytes,
         status=document.status or "queued",
-        message=document.error_message,
+        message=public_error_message(
+            document.error_message, document.status, DOCUMENT_FAILED_MESSAGE
+        ),
     )
 
 
@@ -331,7 +336,11 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Document).where(Document.owner_id == current_user.id).order_by(Document.created_at.desc()))
+    result = await db.execute(
+        select(Document)
+        .where(Document.owner_id == current_user.id)
+        .order_by(Document.created_at.desc())
+    )
     return list(result.scalars().all())
 
 
@@ -345,11 +354,16 @@ async def get_document(
     document = access.document
     document_id = document.id
 
-    jobs = await db.execute(select(Job).where(Job.document_id == document_id).order_by(Job.created_at))
-    pages = await db.execute(select(Page).where(Page.document_id == document_id).order_by(Page.page_number))
+    jobs = await db.execute(
+        select(Job).where(Job.document_id == document_id).order_by(Job.created_at)
+    )
+    pages = await db.execute(
+        select(Page).where(Page.document_id == document_id).order_by(Page.page_number)
+    )
     detail = DocumentDetail.model_validate(document)
-    detail.jobs = list(jobs.scalars().all())
-    detail.pages = list(pages.scalars().all())
+    # Validated one by one so each gets the user-facing error filter (US-11).
+    detail.jobs = [JobOut.model_validate(job) for job in jobs.scalars()]
+    detail.pages = [PageOut.model_validate(page) for page in pages.scalars()]
     return detail
 
 
@@ -373,9 +387,13 @@ async def get_document_content(
     """
     document = access.document
     try:
-        handle = await run_in_threadpool(get_storage().download_file, document.storage_key)
+        handle = await run_in_threadpool(
+            get_storage().download_file, document.storage_key
+        )
     except ObjectNotFoundError:
-        logger.error(f"Object missing for document {document.id}: {document.storage_key}")
+        logger.error(
+            f"Object missing for document {document.id}: {document.storage_key}"
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="The original file is no longer in storage",
@@ -389,5 +407,9 @@ async def get_document_content(
     return StreamingResponse(
         _iter_object(handle),
         media_type=document.file_type or "application/octet-stream",
-        headers={"Content-Disposition": content_disposition(filename, disposition="inline", unicode_filename=unicode_filename)},
+        headers={
+            "Content-Disposition": content_disposition(
+                filename, disposition="inline", unicode_filename=unicode_filename
+            )
+        },
     )

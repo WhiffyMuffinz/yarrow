@@ -3,7 +3,13 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
+
+from app.services.failure_messages import (
+    DOCUMENT_FAILED_MESSAGE,
+    PAGE_FAILED_MESSAGE,
+    public_error_message,
+)
 
 
 class JobOut(BaseModel):
@@ -16,6 +22,14 @@ class JobOut(BaseModel):
     total_pages: int | None = None
     error_message: str | None = None
 
+    @model_validator(mode="after")
+    def _only_user_facing_errors(self):
+        # The worker may store raw exception text here (US-11, NFR-6).
+        self.error_message = public_error_message(
+            self.error_message, self.status, DOCUMENT_FAILED_MESSAGE
+        )
+        return self
+
 
 class PageOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -25,6 +39,14 @@ class PageOut(BaseModel):
     width: float | None = None
     height: float | None = None
     error_message: str | None = None
+
+    @model_validator(mode="after")
+    def _only_user_facing_errors(self):
+        # The worker may store raw exception text here (US-11, NFR-6).
+        self.error_message = public_error_message(
+            self.error_message, self.status, PAGE_FAILED_MESSAGE
+        )
+        return self
 
 
 class DocumentOut(BaseModel):
@@ -38,6 +60,14 @@ class DocumentOut(BaseModel):
     status: str | None = None
     error_message: str | None = None
     created_at: datetime | None = None
+
+    @model_validator(mode="after")
+    def _only_user_facing_errors(self):
+        # The worker may store raw exception text here (US-11, NFR-6).
+        self.error_message = public_error_message(
+            self.error_message, self.status, DOCUMENT_FAILED_MESSAGE
+        )
+        return self
 
 
 class DocumentDetail(DocumentOut):
