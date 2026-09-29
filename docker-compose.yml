@@ -112,6 +112,12 @@ services:
       - SECRET_KEY=${SECRET_KEY:-supersecretkey_please_change_in_production}
       - JWT_ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=1440
+      - ENFORCE_HTTPS=${ENFORCE_HTTPS:-false}
+      # Addresses of the TLS-terminating proxy that uvicorn trusts to report
+      # the original https scheme. Must be set when ENFORCE_HTTPS is on behind
+      # a proxy, or every request looks like http and redirects forever.
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1}
+      - LOG_EMAIL_BODIES=${LOG_EMAIL_BODIES:-false}
       # Where the frontend is reachable, used to build links in emails.
       - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - SMTP_HOST=${SMTP_HOST:-mailpit}

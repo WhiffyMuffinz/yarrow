@@ -24,15 +24,24 @@ class Settings(DatabaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
+    # NFR-6. Turn on wherever the app is served over HTTPS: plain-HTTP
+    # requests are redirected and browsers are told to always use HTTPS. Off
+    # for local development on http://localhost.
+    ENFORCE_HTTPS: bool = False
+
     # Kept for an admin health view; the backend itself never calls inference.
     # Which endpoint the *worker* uses is set in its own Settings.
     INFERENCE_SERVICE_URL: str = "http://gateway:8080/layout-parsing"
     INFERENCE_API_KEY: str = ""
 
     # Outbound email (US-1 verification, US-67 reset). SMTP_HOST unset means
-    # "no mail server": messages are logged instead, which is what a developer
-    # running the backend outside compose gets. Compose points this at Mailpit.
+    # "no mail server": nothing is sent, which is what a developer running the
+    # backend outside compose gets. Compose points this at Mailpit.
     SMTP_HOST: str | None = None
+    # Without a mail server, log the full email body (it contains codes and
+    # reset links). For local development only; never enable where logs are
+    # kept or shared (NFR-6).
+    LOG_EMAIL_BODIES: bool = False
     SMTP_PORT: int = 1025
     SMTP_USER: str | None = None
     SMTP_PASSWORD: str | None = None
