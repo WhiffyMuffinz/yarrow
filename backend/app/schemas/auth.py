@@ -1,15 +1,9 @@
-"""User, token and email verification models."""
+"""User, token, email verification and password reset models."""
 
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    ConfigDict,
-    EmailStr,
-    Field,
-)
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
 
 
 def normalize_email(value: str) -> str:
@@ -48,6 +42,10 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    # Plain str on the way out: the value comes from our own database and was
+    # validated when it came in. Re-validating it here rejected the seeded
+    # "@yarrow.local" accounts (".local" is a reserved domain), which made
+    # /auth/me crash with a 500 for them.
     email: str
     name: str | None = None
     is_admin: bool

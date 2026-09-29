@@ -3,7 +3,15 @@ import logging
 from uuid import UUID, uuid4
 
 import filetype
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
@@ -32,6 +40,14 @@ logger = logging.getLogger(__name__)
 # Content-Type. These are exactly the types worker DocumentParser has a loader
 # for -- accepting anything else queues a job that can only fail.
 ALLOWED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "gif"}
+# Shown to users when a file is rejected (US-37). Keep in sync with the list
+# above and with the frontend's ACCEPTED_TYPES in src/lib/uploads.ts.
+ACCEPTED_TYPES_TEXT = "PDF, PNG, JPEG and GIF"
+MAX_UPLOAD_ID_LENGTH = 64
+QUEUE_FAILED_MESSAGE = (
+    "The file was uploaded, but processing could not be started. "
+    "Please try again later."
+)
 CONTENT_TYPE_BY_EXTENSION = {
     "pdf": "application/pdf",
     "png": "image/png",
@@ -43,6 +59,44 @@ CONTENT_TYPE_BY_EXTENSION = {
 # Enough to identify every type above; filetype only reads a header.
 SNIFF_BYTES = 8192
 READ_CHUNK = 1024 * 1024
+
+
+async def _find_earlier_upload(
+    db: AsyncSession, owner_id: UUID, upload_id: str
+) -> UploadAccepted | None:
+    """The result of this user's earlier upload with the same client id."""
+    result = await db.execute(
+        select(Document).where(
+            Document.owner_id == owner_id, Document.client_upload_id == upload_id
+        )
+    )
+    document = result.scalars().first()
+    if document is None:
+        return None
+    job = (
+        (
+            await db.execute(
+                select(Job)
+                .where(Job.document_id == document.id)
+                .order_by(Job.created_at.desc())
+            )
+        )
+        .scalars()
+        .first()
+    )
+    return UploadAccepted(
+        document_id=document.id,
+        job_id=job.id if job else document.id,
+        task_id=(job.celery_task_id if job else None) or "",
+        filename=document.filename,
+        file_size_bytes=document.file_size_bytes,
+        status=document.status or "queued",
+        message=document.error_message,
+    )
+
+
+def _megabytes(size: int) -> str:
+    return f"{size // (1024 * 1024)} MB"
 
 
 def _storage_key(document_id: UUID) -> str:
@@ -80,6 +134,7 @@ async def _measure(upload: UploadFile) -> tuple[int, str, str | None]:
 @router.post("/upload", response_model=UploadResponse)
 async def upload_documents(
     files: list[UploadFile] = File(...),
+    client_upload_ids: list[str] | None = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -88,27 +143,73 @@ async def upload_documents(
     Bulk by design (backlog #8). One unusable file does not reject the batch:
     each is reported in `accepted` or `rejected` so the caller can show a
     per-file result.
+
+    ``client_upload_ids`` (optional, one per file, in the same order) makes
+    retries safe: a file whose id this user has already uploaded returns the
+    existing document instead of being stored a second time.
     """
+    if client_upload_ids is not None:
+        if len(client_upload_ids) != len(files):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Send exactly one client_upload_ids value per file.",
+            )
+        if len(set(client_upload_ids)) != len(client_upload_ids) or any(
+            not 1 <= len(upload_id) <= MAX_UPLOAD_ID_LENGTH
+            for upload_id in client_upload_ids
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="client_upload_ids must be unique, non-empty and short.",
+            )
+
     storage = get_storage()
     accepted: list[UploadAccepted] = []
     rejected: list[UploadRejected] = []
     jobs_by_id: dict[UUID, Job] = {}
+    documents_by_job: dict[UUID, Document] = {}
+
+    # Re-read the user with the row locked until this request commits, so two
+    # uploads at the same moment take turns. Otherwise each could pass the
+    # quota check on the same starting total and together exceed it.
+    locked = await db.execute(
+        select(User)
+        .where(User.id == current_user.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    current_user = locked.scalar_one()
     # Running total, so that several files in one request cannot each pass a
     # quota check that they only collectively exceed.
     used_bytes = current_user.storage_used_bytes or 0
 
-    for upload in files:
+    for index, upload in enumerate(files):
         filename = upload.filename or "unnamed"
+        upload_id = client_upload_ids[index] if client_upload_ids else None
+
+        if upload_id:
+            earlier = await _find_earlier_upload(db, current_user.id, upload_id)
+            if earlier is not None:
+                # A retry of an upload that already succeeded (its response
+                # was lost): report the stored document, store nothing new.
+                accepted.append(earlier)
+                continue
+
         size, _sha256, extension = await _measure(upload)
 
         if size == 0:
             rejected.append(UploadRejected(filename=filename, reason="File is empty"))
             continue
         if extension not in ALLOWED_EXTENSIONS:
+            # Decided from the file's contents, not its name, so a renamed
+            # file is rejected too (US-37).
             rejected.append(
                 UploadRejected(
                     filename=filename,
-                    reason=f"Unsupported file type ({extension or 'unrecognized'})",
+                    reason=(
+                        "Unsupported file type. Yarrow accepts "
+                        f"{ACCEPTED_TYPES_TEXT} files."
+                    ),
                 )
             )
             continue
@@ -116,12 +217,20 @@ async def upload_documents(
             rejected.append(
                 UploadRejected(
                     filename=filename,
-                    reason=f"File exceeds the {settings.MAX_UPLOAD_BYTES} byte limit",
+                    reason=(
+                        "File is too large. The limit is "
+                        f"{_megabytes(settings.MAX_UPLOAD_BYTES)} per file."
+                    ),
                 )
             )
             continue
         if used_bytes + size > settings.STORAGE_QUOTA_BYTES:
-            rejected.append(UploadRejected(filename=filename, reason="Storage quota exceeded"))
+            rejected.append(
+                UploadRejected(
+                    filename=filename,
+                    reason="Not enough storage left in your account for this file.",
+                )
+            )
             continue
 
         document_id = uuid4()
@@ -138,6 +247,7 @@ async def upload_documents(
                 UploadRejected(
                     filename=filename,
                     reason="Could not be stored right now. Please try again.",
+                    retryable=True,
                 )
             )
             continue
@@ -150,6 +260,7 @@ async def upload_documents(
             file_type=CONTENT_TYPE_BY_EXTENSION[extension],
             storage_key=key,
             status="queued",
+            client_upload_id=upload_id,
         )
         job = Job(
             id=uuid4(),
@@ -161,6 +272,7 @@ async def upload_documents(
         )
         db.add_all([document, job])
         jobs_by_id[job.id] = job
+        documents_by_job[job.id] = document
         used_bytes += size
         accepted.append(
             UploadAccepted(
@@ -180,9 +292,28 @@ async def upload_documents(
     await db.commit()
 
     for item in accepted:
-        item.task_id = enqueue_document_processing(item.job_id)
+        job = jobs_by_id.get(item.job_id)
+        if job is None:
+            # Re-reported from an earlier upload; it was queued back then.
+            continue
+        try:
+            item.task_id = enqueue_document_processing(item.job_id)
+        except Exception:
+            # The file is already stored and counted, so the upload itself
+            # succeeded; only starting processing failed. Record that on the
+            # document rather than failing the request: an error here would
+            # invite the client to upload again and create a duplicate.
+            logger.exception(f"Queueing job {item.job_id} failed")
+            job.status = "failed"
+            job.error_message = QUEUE_FAILED_MESSAGE
+            document = documents_by_job[item.job_id]
+            document.status = "failed"
+            document.error_message = QUEUE_FAILED_MESSAGE
+            item.status = "failed"
+            item.message = QUEUE_FAILED_MESSAGE
+            continue
         # Persisted so that a queued job can be revoked later (US-42).
-        jobs_by_id[item.job_id].celery_task_id = item.task_id
+        job.celery_task_id = item.task_id
     if accepted:
         await db.commit()
 

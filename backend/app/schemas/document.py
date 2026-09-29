@@ -53,6 +53,11 @@ class UploadAccepted(BaseModel):
     task_id: str
     filename: str
     file_size_bytes: int
+    # The document's processing status after the upload: normally "queued";
+    # "failed" when the file was stored but processing could not be started,
+    # with the reason in ``message``.
+    status: str = "queued"
+    message: str | None = None
 
 
 class UploadRejected(BaseModel):
@@ -60,6 +65,10 @@ class UploadRejected(BaseModel):
 
     filename: str
     reason: str
+    # True when the problem was on our side and may clear up (e.g. storage
+    # briefly unavailable), so the client can offer "Retry". False for
+    # problems with the file itself, which retrying cannot fix.
+    retryable: bool = False
 
 
 class UploadResponse(BaseModel):

@@ -64,9 +64,12 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    # "mc alias set", not "mc config host add": current mc images removed the
+    # latter, so the alias was never defined and "mc mb myminio/..." quietly
+    # made a local folder instead of the bucket, which broke every upload.
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
       /usr/bin/mc mb myminio/yarrow-documents --ignore-existing;
       /usr/bin/mc anonymous set public myminio/yarrow-documents;
       exit 0;
