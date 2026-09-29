@@ -1,4 +1,5 @@
-"""Unit tests for process_document_task"""
+"""Unit tests for process_document_task
+"""
 
 import pytest
 
@@ -9,9 +10,9 @@ from app.tasks.ingestion import AllPagesFailedError, process_document_task
 class TestSuccess:
     def test_success(self, job, session, storage, parser):
         parser.configure(page_count=3)
-
+        
         process_document_task(str(job.id))
-
+        
         assert job.status == "completed"
         assert job.current_stage == "finished"
         assert job.total_pages == 3
@@ -20,7 +21,6 @@ class TestSuccess:
         assert job.document.status == "completed"
         assert job.document.page_count == 3
 
-
 # Test behavior for all failures
 class TestAllFailure:
     def test_all_failure(self, job, session, storage, parser):
@@ -28,7 +28,7 @@ class TestAllFailure:
 
         with pytest.raises(AllPagesFailedError):
             process_document_task(str(job.id))
-
+        
         assert job.status == "failed"
         assert job.current_stage == "parsing"
         assert job.total_pages == 3
@@ -44,7 +44,7 @@ class TestPartialFailure:
         parser.configure(page_count=3, failed=(1, 2))
 
         process_document_task(str(job.id))
-
+        
         assert job.status == "completed"
         assert job.current_stage == "finished"
         assert job.total_pages == 3
@@ -55,3 +55,6 @@ class TestPartialFailure:
 
 
 # Test missing s3 object behavior
+
+
+

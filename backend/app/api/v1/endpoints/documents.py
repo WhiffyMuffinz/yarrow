@@ -4,15 +4,18 @@ from uuid import UUID, uuid4
 
 import filetype
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from yarrow_db.models import Document, Job, Page, User
-from yarrow_storage import get_storage
+from yarrow_storage import ObjectNotFoundError, get_storage
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.queue import enqueue_document_processing
 from app.core.security import get_current_user
+from app.deps import DocumentAccess, require_read_access
 from app.schemas import (
     DocumentDetail,
     DocumentOut,
@@ -20,6 +23,7 @@ from app.schemas import (
     UploadRejected,
     UploadResponse,
 )
+from app.services.export import content_disposition, display_stem, safe_stem
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -117,9 +121,7 @@ async def upload_documents(
             )
             continue
         if used_bytes + size > settings.STORAGE_QUOTA_BYTES:
-            rejected.append(
-                UploadRejected(filename=filename, reason="Storage quota exceeded")
-            )
+            rejected.append(UploadRejected(filename=filename, reason="Storage quota exceeded"))
             continue
 
         document_id = uuid4()
@@ -130,9 +132,7 @@ async def upload_documents(
             storage.upload_file(upload.file, key)
         except Exception as exc:
             logger.exception(f"Storing {filename} failed")
-            rejected.append(
-                UploadRejected(filename=filename, reason=f"Could not be stored: {exc}")
-            )
+            rejected.append(UploadRejected(filename=filename, reason=f"Could not be stored: {exc}"))
             continue
 
         document = Document(
@@ -193,36 +193,63 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(
-        select(Document)
-        .where(Document.owner_id == current_user.id)
-        .order_by(Document.created_at.desc())
-    )
+    result = await db.execute(select(Document).where(Document.owner_id == current_user.id).order_by(Document.created_at.desc()))
     return list(result.scalars().all())
 
 
 @router.get("/{document_id}", response_model=DocumentDetail)
 async def get_document(
-    document_id: UUID,
+    access: DocumentAccess = Depends(require_read_access),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    result = await db.execute(select(Document).where(Document.id == document_id))
-    document = result.scalars().first()
-    # 404 rather than 403 for someone else's document, so that ids cannot be
-    # probed for existence.
-    if document is None or document.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
-        )
+    """Gets document metadata with its jobs and pages"""
 
-    jobs = await db.execute(
-        select(Job).where(Job.document_id == document_id).order_by(Job.created_at)
-    )
-    pages = await db.execute(
-        select(Page).where(Page.document_id == document_id).order_by(Page.page_number)
-    )
+    document = access.document
+    document_id = document.id
+
+    jobs = await db.execute(select(Job).where(Job.document_id == document_id).order_by(Job.created_at))
+    pages = await db.execute(select(Page).where(Page.document_id == document_id).order_by(Page.page_number))
     detail = DocumentDetail.model_validate(document)
-    detail.jobs = [j for j in jobs.scalars().all()]
-    detail.pages = [p for p in pages.scalars().all()]
+    detail.jobs = list(jobs.scalars().all())
+    detail.pages = list(pages.scalars().all())
     return detail
+
+
+def _iter_object(handle, chunk_size: int = READ_CHUNK):
+    """Yield the object in chunks, always closing the handle"""
+    try:
+        while chunk := handle.read(chunk_size):
+            yield chunk
+    finally:
+        handle.close()
+
+
+@router.get("/{document_id}/content")
+async def get_document_content(
+    access: DocumentAccess = Depends(require_read_access),
+):
+    """Streams the original uploaded document for the viewer
+
+    Served through the backend rather than as a presigned URL so that the
+    document share policies can apply.
+    """
+    document = access.document
+    try:
+        handle = await run_in_threadpool(get_storage().download_file, document.storage_key)
+    except ObjectNotFoundError:
+        logger.error(f"Object missing for document {document.id}: {document.storage_key}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The original file is no longer in storage",
+        ) from None
+
+    extension = document.filename.rsplit(".", 1)[-1] if "." in document.filename else ""
+    fallback = f"document-{document.id}"
+    suffix = f".{extension}" if extension else ""
+    filename = f"{safe_stem(document.filename, fallback)}{suffix}"
+    unicode_filename = f"{display_stem(document.filename, fallback)}{suffix}"
+    return StreamingResponse(
+        _iter_object(handle),
+        media_type=document.file_type or "application/octet-stream",
+        headers={"Content-Disposition": content_disposition(filename, disposition="inline", unicode_filename=unicode_filename)},
+    )
