@@ -47,11 +47,6 @@ ignore = ["B008", "BLE001"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-# So that `import app...` resolves when pytest is run from this directory,
-# matching the worker package.
 pythonpath = ["."]
 testpaths = ["tests"]
-markers = [
-    "integration: needs a migrated postgres database",
-]
 

@@ -24,7 +24,7 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    email: EmailStr
+    email: str
     name: str | None = None
     is_admin: bool
     storage_used_bytes: int
