@@ -20,6 +20,12 @@ class UserCreate(BaseModel):
         return value
 
 
+class UserDelete(BaseModel):
+    # Re-entered on deletion so that a stolen or left-open session alone cannot
+    # destroy the account.
+    password: str
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

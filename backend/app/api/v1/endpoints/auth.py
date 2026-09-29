@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -14,7 +14,8 @@ from app.core.security import (
     get_password_hash,
     verify_password,
 )
-from app.schemas import Token, UserCreate, UserOut
+from app.schemas import Token, UserCreate, UserDelete, UserOut
+from app.services.account import delete_account
 
 router = APIRouter()
 
@@ -80,3 +81,24 @@ async def login(
 @router.get("/me", response_model=UserOut)
 async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_me(
+    payload: UserDelete,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if not verify_password(payload.password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"detail": "Incorrect password", "code": "INVALID_PASSWORD"},
+        )
+
+    outcome = await delete_account(db, current_user.id)
+    if not outcome.ok:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"detail": outcome.detail, "code": outcome.error.value},
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

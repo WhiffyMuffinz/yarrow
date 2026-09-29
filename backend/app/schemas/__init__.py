@@ -4,7 +4,7 @@ Re-exported flat so that ``from app.schemas import DocumentOut`` keeps working
 for the endpoints written against the original single-module layout.
 """
 
-from .auth import Token, UserCreate, UserOut
+from .auth import Token, UserCreate, UserDelete, UserOut
 from .common import BBox, StrictModel
 from .document import (
     DocumentDetail,
@@ -59,6 +59,7 @@ __all__ = [
     "UploadRejected",
     "UploadResponse",
     "UserCreate",
+    "UserDelete",
     "UserOut",
     "WarningNode",
 ]
