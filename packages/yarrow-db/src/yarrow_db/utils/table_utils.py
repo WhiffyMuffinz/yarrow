@@ -7,14 +7,37 @@ from yarrow_db.models import RegionTable, Table
 from yarrow_db.models.region import Region
 
 
-def is_consecutive(session: Session, region_table_prev: RegionTable, region_table_next: RegionTable) -> bool:
-    """
-    Checks if two region tables are consecutive.
-    
+def row_span(region_table: RegionTable) -> int:
+    return (region_table.row_end or 0) - (region_table.row_start or 0) + 1
+
+
+def col_span(region_table: RegionTable) -> int:
+    return (region_table.col_end or 0) - (region_table.col_start or 0) + 1
+
+
+def ordered_parts(session: Session, table: Table) -> list[RegionTable]:
+    """Returns the table's parts (RegionTable) in reading order"""
+    return (
+        session.query(RegionTable)
+        .filter(RegionTable.table_id == table.id)
+        .order_by(RegionTable.reading_order, RegionTable.id)
+        .all()
+    )
+
+
+def is_consecutive(
+    session: Session,
+    region_table_prev: RegionTable,
+    region_table_next: RegionTable,
+) -> bool:
+    """Checks if two region tables are consecutive.
+
     For two region tables to be consecutive, the following conditions must be met:
+    - They must belong to different tables.
     - The previous region table's region must be at the end of its page.
     - The next region table's region must be at the start of its page.
-    - The previous and next region tables must have the same column end.
+    - The two pages must be adjacent.
+    - Both must have the same number of columns.
 
     Args:
         session (Session): SQLAlchemy session object.
@@ -25,20 +48,46 @@ def is_consecutive(session: Session, region_table_prev: RegionTable, region_tabl
         bool: True if the region tables are consecutive, False otherwise.
     """
     
-    # Get the region objects of each region table
+    if region_table_prev.table_id == region_table_next.table_id:
+        return False
+
     region_prev = region_table_prev.region
     region_next = region_table_next.region
     
-    prev_max_reading_order = session.query(func.max(Region.reading_order)).filter(Region.page_id == region_prev.page_id).scalar()
-    next_min_reading_order = session.query(func.min(Region.reading_order)).filter(Region.page_id == region_next.page_id).scalar()
-    prev_col_count = region_table_prev.col_end - region_table_prev.col_start
-    next_col_count = region_table_next.col_end - region_table_next.col_start
+    if region_prev is None or region_next is None:
+        return False
+
+    page_prev = region_prev.page
+    page_next = region_next.page
     
+    if page_prev is None or page_next is None:
+        return False
+
+    # A malformed page can leave any of these null. Treated as "not consecutive"
+    if (
+        region_prev.reading_order is None
+        or region_next.reading_order is None
+        or page_prev.page_number is None
+        or page_next.page_number is None
+    ):
+        return False
+
+    prev_max_reading_order = (
+        session.query(func.max(Region.reading_order))
+        .filter(Region.page_id == region_prev.page_id)
+        .scalar()
+    )
+    next_min_reading_order = (
+        session.query(func.min(Region.reading_order))
+        .filter(Region.page_id == region_next.page_id)
+        .scalar()
+    )
+
     return (
-        region_prev.reading_order == prev_max_reading_order and
-        region_next.reading_order == next_min_reading_order and
-        region_prev.page.page_number + 1 == region_next.page.page_number and
-        prev_col_count == next_col_count
+        region_prev.reading_order == prev_max_reading_order
+        and region_next.reading_order == next_min_reading_order
+        and page_prev.page_number + 1 == page_next.page_number
+        and col_span(region_table_prev) == col_span(region_table_next)
     )
 
 
@@ -46,113 +95,122 @@ def merge_consecutive_tables(session: Session, document_id: uuid.UUID) -> None:
     """
     Merges all consecutive tables into a single table.
     """
-        
-    # Get all table objects associated with the document
     tables = session.query(Table).filter(Table.document_id == document_id).all()
-    
+
     table_page_intervals: list[dict[str, object]] = []
-    
-    # For each table object, get its region table with highest reading order (rt_high) and lowest reading order (rt_low)
+
     for table in tables:
-        max_order = (
-            session.query(func.max(RegionTable.reading_order))
-            .filter(RegionTable.table_id == table.id)
-            .scalar()
+        parts = ordered_parts(session, table)
+        if not parts:
+            continue
+
+        first_part, last_part = parts[0], parts[-1]
+        table_page_intervals.append(
+            {
+                "table": table,
+                "start_page": first_part.region.page.page_number,
+                "end_page": last_part.region.page.page_number,
+                "first_part_id": first_part.id,
+                "last_part_id": last_part.id,
+            }
         )
 
-        min_order = (
-            session.query(func.min(RegionTable.reading_order))
-            .filter(RegionTable.table_id == table.id)
-            .scalar()
+    table_page_intervals.sort(key=lambda item: (item["start_page"], item["end_page"]))
+
+    for index in range(len(table_page_intervals) - 2, -1, -1):
+        table = table_page_intervals[index]["table"]
+        next_table = table_page_intervals[index + 1]["table"]
+
+        end_region_table = session.get(
+            RegionTable, table_page_intervals[index]["last_part_id"]
         )
-
-        rt_high = (
-            session.query(RegionTable)
-            .filter(
-                RegionTable.table_id == table.id,
-                RegionTable.reading_order == max_order,
-            )
-            .first()
+        next_start_region_table = session.get(
+            RegionTable, table_page_intervals[index + 1]["first_part_id"]
         )
+        if end_region_table is None or next_start_region_table is None:
+            continue
 
-        rt_low = (
-            session.query(RegionTable)
-            .filter(
-                RegionTable.table_id == table.id,
-                RegionTable.reading_order == min_order,
-            )
-            .first()
-        )
-    
-        table_page_intervals.append({
-            "table": table,
-            "start_page": rt_low.region.page.page_number,
-            "end_page": rt_high.region.page.page_number,
-            "rt_high_id": rt_high.id,
-            "rt_low_id": rt_low.id,
-        })
-
-    # Sort page intervals
-    table_page_intervals.sort(key=lambda x: (x["start_page"], x["end_page"]))
-
-    # Traverse page intervals, check if two are consecutive, if so, merge them.
-    for i in range(len(table_page_intervals) - 2, -1, -1):
-        table = table_page_intervals[i]["table"]
-        end_region_table_id = table_page_intervals[i]["rt_high_id"]
-        
-        next_table = table_page_intervals[i + 1]["table"]
-        next_start_region_table_id = table_page_intervals[i + 1]["rt_low_id"]
-
-        end_region_table = session.query(RegionTable).get(end_region_table_id)
-        next_start_region_table = session.query(RegionTable).get(next_start_region_table_id)
-        
-        # check if the current table and the next table are consecutive
         if is_consecutive(session, end_region_table, next_start_region_table):
             merge_two_tables(session, table, next_table)
 
-def split_consecutive_tables(session: Session, document_id: uuid.UUID) -> None:
+
+def split_table(session: Session, table: Table) -> list[Table]:
+    """Splits one table into a standalone table per region table
+
+    Args:
+        session: SQLAlchemy session object
+        table: The table to split
+
+    Returns:
+        The resulting tables in reading order
     """
-    Splits all consecutive tables into individual tables.
-    """
-    # TODO
-    
-    # Get all the stitched tables associated with the document
-    tables = session.query(Table).filter(Table.document_id == document_id, Table.is_stitched == True).all()
-    # Get all the region tables associated with the stitched tables
-    region_tables = session.query(RegionTable).filter(RegionTable.table_id.in_([t.id for t in tables])).all()
-    
-    # For each region table, create its own table object
+    parts = ordered_parts(session, table)
+
+    if len(parts) <= 1:
+        # Nothing to split
+        table.is_stitched = False
+        if parts:
+            table.row_count = row_span(parts[0])
+            table.col_count = col_span(parts[0])
+        session.flush()
+        return [table]
+
     new_tables: list[Table] = []
-    for rt in region_tables:
-        new_table = Table(
+    new_tables.extend(
+        Table(
             id=uuid.uuid4(),
-            document_id=document_id,
+            document_id=table.document_id,
+            row_count=row_span(part),
+            col_count=col_span(part),
             is_stitched=False,
-            row_count=(rt.row_end - rt.row_start),
-            col_count=(rt.col_end - rt.col_start),
-            title=rt.table.title if rt.table else None
+            title=table.title if index == 0 else None,
         )
-        new_tables.append(new_table)
-        rt.table_id = new_table.id
-
-        # Reset the row range to be 0-based within the new standalone table.
-        # TableCell.row_idx is already local to its own region table (the
-        # global row is row_start + row_idx), so cells need no adjustment.
-        row_offset = rt.row_start
-        rt.row_end -= row_offset
-        rt.row_start = 0
-
+        for index, part in enumerate(parts)
+    )
     session.add_all(new_tables)
-
-    # Remove the stitched tables
-    for table in tables:
-        session.delete(table)
     session.flush()
+
+    # Associates the region table objects to new tables
+    for part, new_table in zip(parts, new_tables, strict=True):
+        part.table = new_table
+        part.reading_order = 0
+        part.row_end = part.row_end - part.row_start
+        part.row_start = 0
+
+    session.flush()
+    session.delete(table)
+    session.flush()
+    return new_tables
+
+
+def split_consecutive_tables(session: Session, document_id: uuid.UUID) -> list[Table]:
+    """
+    Splits all stitched tables into individual tables.
+
+    Returns:
+        Every table produced, so a caller can report what changed without
+        re-querying.
+    """
+    stitched = (
+        session.query(Table)
+        .filter(Table.document_id == document_id, Table.is_stitched.is_(True))
+        .order_by(Table.id)
+        .all()
+    )
+
+    result: list[Table] = []
+    for table in stitched:
+        result.extend(split_table(session, table))
+    return result
+
 
 def merge_two_tables(session: Session, table_prev: Table, table_next: Table) -> None:
     """
     Merges two specified tables into a single table.
-    
+
+    Consecutiveness is deliberately not checked here. Callers that act on user
+    input validate it themselves with is_consecutive().
+
     Args:
         table_prev: The previous table object to be merged.
         table_next: The next table object to be merged.
@@ -160,35 +218,45 @@ def merge_two_tables(session: Session, table_prev: Table, table_next: Table) -> 
     if table_prev.id == table_next.id:
         return
 
-    table_next_region_tables = (
-        session.query(RegionTable)
-        .filter(RegionTable.table_id == table_next.id)
-        .order_by(RegionTable.reading_order)
-        .all()
+    table_next_region_tables = ordered_parts(session, table_next)
+    if not table_next_region_tables:
+        session.delete(table_next)
+        session.flush()
+        return
+
+    row_offset = table_prev.row_count or 0
+    next_reading_order = (
+        session.query(func.count(RegionTable.id))
+        .filter(RegionTable.table_id == table_prev.id)
+        .scalar()
+        or 0
     )
 
-    row_offset = table_prev.row_count
-    next_reading_order = session.query(func.count(RegionTable.id)).filter(RegionTable.table_id == table_prev.id).scalar()
-
-    for rt in table_next_region_tables:
+    for region_table in table_next_region_tables:
         # Transfer the region tables of the next table to the previous table,
         # continuing the reading order and row range after table_prev's own parts.
-        rt.table = table_prev
-        rt.reading_order = next_reading_order
-        rt.row_start += row_offset
-        rt.row_end += row_offset
-        table_prev.is_stitched = True
+        region_table.table = table_prev
+        region_table.reading_order = next_reading_order
+        region_table.row_start += row_offset
+        region_table.row_end += row_offset
         next_reading_order += 1
         # TableCell.row_idx stays local to its own region table; the global row
         # is row_start + row_idx, so no offset is applied to the cells here.
 
-    table_prev.row_count = row_offset + table_next.row_count
+    table_prev.is_stitched = True
+    table_prev.row_count = row_offset + (table_next.row_count or 0)
+    table_prev.col_count = max(table_prev.col_count or 0, table_next.col_count or 0)
 
     session.delete(table_next)
     session.flush()
 
 
-def insert_region_table(session: Session, table: Table, region_table: RegionTable, insert_after: RegionTable) -> None:
+def insert_region_table(
+    session: Session,
+    table: Table,
+    region_table: RegionTable,
+    insert_after: RegionTable,
+) -> None:
     """
     Inserts region_table into table immediately after insert_after.
 
@@ -202,25 +270,28 @@ def insert_region_table(session: Session, table: Table, region_table: RegionTabl
         return
 
     orphaned_table = region_table.table
-    inserted_rows = region_table.row_end - region_table.row_start
+    inserted_rows = row_span(region_table)
     insertion_order = insert_after.reading_order + 1
 
     later_region_tables = (
         session.query(RegionTable)
-        .filter(RegionTable.table_id == table.id, RegionTable.reading_order >= insertion_order)
+        .filter(
+            RegionTable.table_id == table.id,
+            RegionTable.reading_order >= insertion_order,
+        )
         .order_by(RegionTable.reading_order)
         .all()
     )
 
-    for rt in later_region_tables:
-        rt.reading_order += 1
-        rt.row_start += inserted_rows
-        rt.row_end += inserted_rows
+    for later in later_region_tables:
+        later.reading_order += 1
+        later.row_start += inserted_rows
+        later.row_end += inserted_rows
 
     region_table.table = table
     region_table.reading_order = insertion_order
-    region_table.row_start = insert_after.row_end
-    region_table.row_end = insert_after.row_end + inserted_rows
+    region_table.row_start = insert_after.row_end + 1
+    region_table.row_end = region_table.row_start + inserted_rows - 1
 
     table.row_count = (table.row_count or 0) + inserted_rows
     table.is_stitched = True
@@ -230,7 +301,11 @@ def insert_region_table(session: Session, table: Table, region_table: RegionTabl
     # Clean up the now-empty table region_table used to belong to, mirroring
     # the anti-orphan check done when a reprocessed page's rows are deleted.
     if orphaned_table is not None and orphaned_table.id != table.id:
-        remaining = session.query(RegionTable.id).filter(RegionTable.table_id == orphaned_table.id).first()
+        remaining = (
+            session.query(RegionTable.id)
+            .filter(RegionTable.table_id == orphaned_table.id)
+            .first()
+        )
         if remaining is None:
             session.delete(orphaned_table)
             session.flush()

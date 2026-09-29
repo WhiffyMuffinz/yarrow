@@ -28,6 +28,9 @@ class FakeResult:
             )
         return self.rows[0] if self.rows else None
 
+    def all(self):
+        return self.rows
+
     def scalars(self):
         return FakeScalarResult(self.rows)
     
@@ -54,13 +57,29 @@ class FakeSession:
         self.store = store
         self.added = []
     
-    def get(self, model, key):
+    def get(self, model, key, with_for_update=False):
+        # with_for_update is accepted and ignored: there is no concurrency to
+        # serialize against in these tests, but ingestion locks the document
+        # row so the signature has to match.
         return self.store.get((model.__name__, key))
     
     def add_all(self, objects):
         self.added.extend(objects)
         
     def execute(self, statement):
+        # Only Page selects are answered, from the rows the task added: ingestion
+        # derives the document's status by reading its pages back, so returning
+        # nothing here would report every document as failed. Everything else the
+        # task executes is a delete or a table query these tests do not assert on.
+        entities = {
+            column.get("entity")
+            for column in getattr(statement, "column_descriptions", [])
+        }
+        if Page in entities:
+            return FakeResult(
+                [(page.page_number, page.status) for page in self.added
+                 if isinstance(page, Page)]
+            )
         return FakeResult()
     
     def scalar(self, statement):

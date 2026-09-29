@@ -6,7 +6,11 @@ from yarrow_db.models import Document, Job, Page, Region, RegionTable, Table, Wa
 from yarrow_db.models.region import RegionImage, RegionText
 from yarrow_db.models.table import TableCell
 from yarrow_db.session import session_scope
-from yarrow_db.utils.table_utils import insert_region_table, is_consecutive, merge_two_tables
+from yarrow_db.utils.table_utils import (
+    insert_region_table,
+    is_consecutive,
+    merge_two_tables,
+)
 from yarrow_storage import ObjectNotFoundError, get_storage
 
 from app.celery_app import celery_app
@@ -18,18 +22,17 @@ from app.pipeline.document_parser import DocumentParser
 
 logger = logging.getLogger(__name__)
 
-# How many page numbers to name before truncating. A 400-page scan processed
-# while the cluster was down would otherwise put 400 numbers in a message the
-# UI renders inline.
+# How many page numbers to name before truncating
 MAX_REPORTED_FAILED_PAGES = 10
 
 
 class AllPagesFailedError(Exception):
-    """Every page failed inference.
+    """Every page this run attempted failed inference.
 
     Raised after the job, document and page rows are committed, so that Celery
     records the task as FAILURE without the generic handler replacing the
-    per-page detail already stored.
+    per-page detail already stored. On a partial reprocess this means the job
+    failed while the document as a whole may still be usable.
     """
 
 
@@ -39,6 +42,17 @@ def _describe_failed_pages(failed: list[int], total: int) -> str:
         shown += f", ... (+{len(failed) - MAX_REPORTED_FAILED_PAGES} more)"
 
     return f"{len(failed)} of {total} page(s) failed: {shown}"
+
+
+def _document_state(page_states: list[tuple[int, str | None]], total_pages: int) -> tuple[str, str | None]:
+    """The document's status and error summary, derived from its page rows"""
+    failed = sorted(number for number, status in page_states if status == "failed")
+    any_completed = any(status == "completed" for _, status in page_states)
+
+    return (
+        "completed" if any_completed else "failed",
+        _describe_failed_pages(failed, total_pages) if failed else None,
+    )
 
 
 def _mark_failed(job_id: str, message: str) -> None:
@@ -96,11 +110,15 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
 
         failed_pages = parser.failed_page_numbers
         total_pages = len(parser.pages)
-        succeeded = total_pages - len(failed_pages)
-        summary = _describe_failed_pages(failed_pages, total_pages) if failed_pages else None
+        attempted = len(page_to_process) if page_to_process is not None else total_pages
+        succeeded = attempted - len(failed_pages)
+        summary = _describe_failed_pages(failed_pages, attempted) if failed_pages else None
+
+        # Attempting nothing is a no-op, not a failure
+        run_failed = bool(attempted) and not succeeded
 
         with session_scope() as session:
-            document = session.get(Document, document_id)
+            document = session.get(Document, document_id, with_for_update=True)
 
             page_ids = select(Page.id).where(
                 Page.document_id == document_id, (Page.page_number.in_(page_to_process) if page_to_process is not None else True)
@@ -135,12 +153,9 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
 
             # Update table objects
             for table in tables:
-                remaining_region_table = session.execute(select(RegionTable.id).where(RegionTable.table_id == table.id).limit(1)).scalar_one_or_none()
-
-                # Checks if deleting all the region tables in the target pages results in tables being orphaned
-                if not remaining_region_table:
-                    session.delete(table)
-                else:
+                if remaining_region_table := session.execute(
+                    select(RegionTable.id).where(RegionTable.table_id == table.id).limit(1)
+                ).scalar_one_or_none():
                     remaining_count = session.execute(select(func.count(RegionTable.id)).where(RegionTable.table_id == table.id)).scalar_one()
 
                     if remaining_count == 1:
@@ -148,9 +163,11 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
 
                     # Updates the row count of the table to reflect the remaining region tables
                     table.row_count = session.execute(
-                        select(func.sum(RegionTable.row_end - RegionTable.row_start)).where(RegionTable.table_id == table.id)
+                        select(func.sum(RegionTable.row_end - RegionTable.row_start + 1)).where(RegionTable.table_id == table.id)
                     ).scalar_one()
 
+                else:
+                    session.delete(table)
             all_objects = parser.to_model_objects(document, target_pages=page_to_process, merge_consecutive_tables=merge_consecutive_tables)
             session.add_all(all_objects)
             session.flush()
@@ -220,15 +237,17 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
                         if next_consecutive:
                             merge_two_tables(session, current_table, next_region_table.table)
 
-            job = session.get(Job, UUID(job_id))
-            job.pages_processed = succeeded
-            job.error_message = summary
-            job.current_stage = "finished" if succeeded else "parsing"
-            job.status = "completed" if succeeded else "failed"
-            document.status = "completed" if succeeded else "failed"
-            document.error_message = summary
+            page_states = session.execute(select(Page.page_number, Page.status).where(Page.document_id == document_id)).all()
 
-        if not succeeded:
+            job = session.get(Job, UUID(job_id))
+            job.pages_processed = sum(status == "completed" for _, status in page_states)
+            job.error_message = summary
+            job.current_stage = "parsing" if run_failed else "finished"
+            job.status = "failed" if run_failed else "completed"
+
+            document.status, document.error_message = _document_state(page_states, document.page_count or total_pages)
+
+        if run_failed:
             raise AllPagesFailedError(summary or "no pages were produced")
 
         if failed_pages:
