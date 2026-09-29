@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/context/AuthContext';
@@ -11,6 +12,7 @@ import { useAuth } from '@/context/AuthContext';
  */
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
   const [signingOut, setSigningOut] = useState(false);
 
   async function handleLogout() {
@@ -35,6 +37,13 @@ export default function Navbar() {
           Yarrow
         </Link>
         <div className="flex min-w-0 items-center gap-4">
+          <Link
+            href="/upload"
+            aria-current={pathname === '/upload' ? 'page' : undefined}
+            className="rounded text-sm font-medium text-slate-700 hover:text-slate-900 aria-[current=page]:text-slate-900 aria-[current=page]:underline aria-[current=page]:underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-slate-900"
+          >
+            Upload
+          </Link>
           {user && (
             <span className="hidden truncate text-sm text-slate-600 sm:inline">
               {user.name || user.email}
