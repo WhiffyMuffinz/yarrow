@@ -4,7 +4,20 @@ Re-exported flat so that ``from app.schemas import DocumentOut`` keeps working
 for the endpoints written against the original single-module layout.
 """
 
+<<<<<<< HEAD
 from .auth import Token, UserCreate, UserDelete, UserOut
+=======
+from .auth import (
+    MessageResponse,
+    NormalizedEmail,
+    ResendVerificationRequest,
+    Token,
+    UserCreate,
+    UserOut,
+    VerifyEmailRequest,
+    normalize_email,
+)
+>>>>>>> main
 from .common import BBox, StrictModel
 from .document import (
     DocumentDetail,
@@ -45,9 +58,12 @@ __all__ = [
     "MergeCandidate",
     "MergeCandidatesOut",
     "MergeTablesRequest",
+    "MessageResponse",
+    "NormalizedEmail",
     "PageNode",
     "PageOut",
     "RegionNode",
+    "ResendVerificationRequest",
     "RowSource",
     "StrictModel",
     "TableCellNode",
@@ -61,5 +77,7 @@ __all__ = [
     "UserCreate",
     "UserDelete",
     "UserOut",
+    "VerifyEmailRequest",
     "WarningNode",
+    "normalize_email",
 ]

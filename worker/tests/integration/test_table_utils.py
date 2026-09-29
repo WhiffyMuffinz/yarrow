@@ -17,6 +17,7 @@ from yarrow_db.utils.table_utils import (
     is_consecutive,
     merge_consecutive_tables,
     ordered_parts,
+    split_at_gaps,
     split_consecutive_tables,
     split_table,
 )
@@ -38,6 +39,7 @@ def graph():
     document_id = uuid.uuid4()
     user_id = uuid.uuid4()
 
+    # Sets up the initial database state
     with session_scope() as session:
         session.add(
             User(
@@ -129,6 +131,7 @@ def graph():
 
     yield document_id
 
+    # Cleans up the database after the test
     with session_scope() as session:
         page_ids = [row[0] for row in session.query(Page.id).filter(Page.document_id == document_id)]
         region_ids = [row[0] for row in session.query(Region.id).filter(Region.page_id.in_(page_ids))]
@@ -336,3 +339,80 @@ class TestIsConsecutive:
         with session_scope() as session:
             parts = _parts_in_document_order(session, graph)
             assert is_consecutive(session, parts[0], parts[1]) is True
+
+
+def _remove_page_part(session, document_id, page_number):
+    """Deletes a page's table part and its cells, as a reprocess of that page does"""
+    part = next(part for part in _parts_in_document_order(session, document_id) if part.region.page.page_number == page_number)
+    session.query(TableCell).filter(TableCell.region_table_id == part.id).delete(synchronize_session=False)
+    session.delete(part)
+    session.flush()
+
+
+class TestSplitAtGaps:
+    def test_splits_around_a_removed_middle_page(self, graph):
+        # Merges all consecutive tables first
+        with session_scope() as session:
+            merge_consecutive_tables(session, graph)
+
+        # Removes a middle page to simulate a gap in the table parts
+        with session_scope() as session:
+            merged = _tables(session, graph)[0]
+            merged_id = merged.id
+            _remove_page_part(session, graph, 2)
+            result = split_at_gaps(session, merged)
+            assert len(result) == 2
+            assert result[0].id == merged_id
+
+        # Verifies the state of the two halves after the split
+        with session_scope() as session:
+            first = session.get(Table, merged_id)
+            second = next(table for table in _tables(session, graph) if table.id != merged_id)
+
+            assert first.title == TITLE
+            assert first.is_stitched is False
+            assert first.row_count == PART_ROWS[0]
+            assert [(p.row_start, p.row_end) for p in ordered_parts(session, first)] == [(0, PART_ROWS[0] - 1)]
+
+            assert second.title is None
+            assert second.is_stitched is True
+            assert second.col_count == COL_COUNT
+            assert second.row_count == PART_ROWS[2] + PART_ROWS[3]
+            parts = ordered_parts(session, second)
+            assert [part.region.page.page_number for part in parts] == [3, 4]
+            assert [part.reading_order for part in parts] == [0, 1]
+            assert [(p.row_start, p.row_end) for p in parts] == [
+                (0, PART_ROWS[2] - 1),
+                (PART_ROWS[2], PART_ROWS[2] + PART_ROWS[3] - 1),
+            ]
+
+    def test_removed_first_page_repacks_rows_from_zero(self, graph):
+        # Merges all consecutive tables first
+        with session_scope() as session:
+            merge_consecutive_tables(session, graph)
+
+        # Removes the first page to simulate a gap at the beginning of the table parts
+        with session_scope() as session:
+            merged = _tables(session, graph)[0]
+            _remove_page_part(session, graph, 1)
+            result = split_at_gaps(session, merged)
+            assert [table.id for table in result] == [merged.id]
+
+        # Verifies that the table's row count and row ranges have been repacked correctly after removing the first page
+        with session_scope() as session:
+            table = _tables(session, graph)[0]
+            assert table.row_count == sum(PART_ROWS[1:])
+            claimed: list[int] = []
+            for part in ordered_parts(session, table):
+                claimed.extend(range(part.row_start, part.row_end + 1))
+            assert sorted(claimed) == list(range(table.row_count))
+
+    def test_deletes_a_table_with_no_parts_left(self, graph):
+        with session_scope() as session:
+            table = next(t for t in _tables(session, graph) if t.title == TITLE)
+            table_id = table.id
+            _remove_page_part(session, graph, 1)
+            assert split_at_gaps(session, table) == []
+
+        with session_scope() as session:
+            assert session.get(Table, table_id) is None

@@ -7,9 +7,9 @@ from yarrow_db.models.region import RegionImage, RegionText
 from yarrow_db.models.table import TableCell
 from yarrow_db.session import session_scope
 from yarrow_db.utils.table_utils import (
-    insert_region_table,
     is_consecutive,
     merge_two_tables,
+    split_at_gaps,
 )
 from yarrow_storage import ObjectNotFoundError, get_storage
 
@@ -173,25 +173,10 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
 
             session.flush()
 
-            # Update table objects
+            # A table that lost a middle page is split into the halves either side of it, and emptied tables are deleted
             for table in tables:
-                if remaining_region_table := session.execute(
-                    select(RegionTable.id).where(RegionTable.table_id == table.id).limit(1)
-                ).scalar_one_or_none():
-                    remaining_count = session.execute(select(func.count(RegionTable.id)).where(RegionTable.table_id == table.id)).scalar_one()
+                split_at_gaps(session, table)
 
-                    if remaining_count == 1:
-                        table.is_stitched = False
-
-                    # Updates the row count of the table to reflect the remaining region tables
-                    table.row_count = session.execute(
-                        select(func.sum(RegionTable.row_end - RegionTable.row_start + 1)).where(RegionTable.table_id == table.id)
-                    ).scalar_one()
-
-                else:
-                    session.delete(table)
-            
-            # Convert the parsed document into model objects and add them to the session
             all_objects = parser.to_model_objects(document, target_pages=page_to_process, merge_consecutive_tables=merge_consecutive_tables)
             session.add_all(all_objects)
             session.flush()
@@ -248,18 +233,12 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
                     prev_consecutive = prev_region_table is not None and is_consecutive(session, prev_region_table, obj)
                     next_consecutive = next_region_table is not None and is_consecutive(session, obj, next_region_table)
 
-                    if prev_consecutive and next_consecutive and prev_region_table.table_id == next_region_table.table_id:
-                        # The reprocessed page sat in the middle of a table: insert the new region table back into the existing table.
-                        insert_region_table(session, prev_region_table.table, obj, insert_after=prev_region_table)
-                    else:
-                        # Merge the current table with the previous table if they are consecutive
-                        if prev_consecutive:
-                            merge_two_tables(session, prev_region_table.table, current_table)
-                            current_table = prev_region_table.table
+                    if prev_consecutive:
+                        merge_two_tables(session, prev_region_table.table, current_table)
+                        current_table = prev_region_table.table
 
-                        # Merge the current table with the next table if they are consecutive
-                        if next_consecutive:
-                            merge_two_tables(session, current_table, next_region_table.table)
+                    if next_consecutive:
+                        merge_two_tables(session, current_table, next_region_table.table)
 
             page_states = session.execute(select(Page.page_number, Page.status).where(Page.document_id == document_id)).all()
 
