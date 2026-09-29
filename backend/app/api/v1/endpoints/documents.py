@@ -23,10 +23,11 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.queue import enqueue_document_processing
 from app.core.security import get_current_user
-from app.deps import DocumentAccess, require_read_access
+from app.deps import DocumentAccess, require_edit_access, require_read_access
 from app.schemas import (
     DocumentDetail,
     DocumentOut,
+    DocumentRename,
     JobOut,
     PageOut,
     UploadAccepted,
@@ -365,6 +366,25 @@ async def get_document(
     detail.jobs = [JobOut.model_validate(job) for job in jobs.scalars()]
     detail.pages = [PageOut.model_validate(page) for page in pages.scalars()]
     return detail
+
+
+@router.patch("/{document_id}", response_model=DocumentOut)
+async def rename_document(
+    body: DocumentRename,
+    access: DocumentAccess = Depends(require_edit_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Rename a document (US-39).
+
+    Only the display name changes: the stored object is keyed by id, so the
+    file itself is untouched. An invalid name is rejected with 422 by the
+    schema before anything is written, so the old name stays.
+    """
+    document = access.document
+    document.filename = body.filename
+    await db.commit()
+    await db.refresh(document)
+    return document
 
 
 def _iter_object(handle, chunk_size: int = READ_CHUNK):
