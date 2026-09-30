@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: paradedb/paradedb:pg18
     container_name: yarrow_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-yarrow}
