@@ -1,3 +1,3 @@
 export default function AdminPage() {
-  return <div>Admin Page Stub</div>;
+    return <div>Admin Page Stub</div>;
 }
