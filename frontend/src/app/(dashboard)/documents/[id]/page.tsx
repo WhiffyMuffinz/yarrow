@@ -1,7 +1,7 @@
 export default function DocumentViewerPage({
-    params,
+  params,
 }: {
-    params: { id: string };
+  params: { id: string };
 }) {
-    return <div>Document {params.id} Page Stub</div>;
+  return <div>Document {params.id} Page Stub</div>;
 }
