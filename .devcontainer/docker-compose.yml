@@ -1,8 +1,12 @@
 # Dev services for the Yarrow devcontainer.
-# Keep in sync with the service definitions in ../docker-compose.yml.
-# Project name and container names use the yarrow_dev prefix so this never
-# collides with the root compose project, even when both are present on the
-# host (container_name is global across projects).
+# GENERATED FILE - do not edit by hand.
+# Regenerate after editing ../docker-compose.yml:
+#   python3 scripts/sync-dev-compose.py
+#
+# Shared infra services are copied verbatim from ../docker-compose.yml with
+# their container_name prefixed yarrow_dev (container names are global across
+# compose projects, so this keeps the dev project from colliding with the root
+# project). App services are dropped; the devcontainer service is added.
 name: yarrow_dev
 
 services:
@@ -17,7 +21,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:16-alpine
+    image: paradedb/paradedb:pg18@sha256:a9cbdcfd8a1c349ab21590fd6d6dcbe7da489878df6502922d032dd64c1a7ae7
     container_name: yarrow_dev_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-yarrow}
@@ -39,8 +43,12 @@ services:
     restart: unless-stopped
 
   valkey:
-    image: valkey/valkey:7-alpine
+    image: valkey/valkey:9.0-alpine@sha256:187679e3bd4036959631e3f03983ab2ba503ab21e6fd0454d508e909db2ee989
     container_name: yarrow_dev_valkey
+    # Append-only log, synced every second, so logouts (revoked tokens,
+    # US-19) survive a crash. The default snapshots alone could lose minutes
+    # of revocations, letting logged-out tokens work again after a restart.
+    command: ["valkey-server", "--appendonly", "yes", "--appendfsync", "everysec"]
     ports:
       - "${VALKEY_PORT:-6379}:6379"
     volumes:
@@ -77,7 +85,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    restart: unless-stopped
+    restart: "no"
 
   rustfs-volumes:
     image: alpine:3.22
@@ -89,34 +97,20 @@ services:
     restart: "no"
 
   create-bucket:
-    image: rclone/rclone:1.75
+    image: rustfs/rc:v0.1.36
     container_name: yarrow_dev_s3_setup
     depends_on:
       rustfs:
         condition: service_healthy
+    # Anonymous access is public read-only (list/get, no put). To allow
+    # anonymous writes instead, change "download" to "public" below.
     entrypoint:
       - /bin/sh
       - -c
       - >-
-        rclone config create rustfs s3 provider Minio access_key_id ${S3_ACCESS_KEY:-rustfsadmin} secret_access_key ${S3_SECRET_KEY:-rustfsadmin} endpoint http://rustfs:9000
-        && rclone mkdir rustfs:${S3_BUCKET_NAME:-yarrow-documents}
-
-  set-bucket-policy:
-    image: amazon/aws-cli:2.36.50
-    container_name: yarrow_dev_s3_policy
-    environment:
-      AWS_ACCESS_KEY_ID: ${S3_ACCESS_KEY:-rustfsadmin}
-      AWS_SECRET_ACCESS_KEY: ${S3_SECRET_KEY:-rustfsadmin}
-      AWS_DEFAULT_REGION: us-east-1
-    depends_on:
-      create-bucket:
-        condition: service_completed_successfully
-    entrypoint:
-      - /bin/sh
-      - -c
-      - >-
-        aws configure set default.s3.addressing_style path
-        && aws s3api put-bucket-policy --endpoint-url http://rustfs:9000 --bucket ${S3_BUCKET_NAME:-yarrow-documents} --policy '{"Version": "2012-10-17", "Statement": [{"Effect": "Allow", "Principal": {"AWS": ["*"]}, "Action": ["s3:ListBucket"], "Resource": ["arn:aws:s3:::${S3_BUCKET_NAME:-yarrow-documents}"]}, {"Effect": "Allow", "Principal": {"AWS": ["*"]}, "Action": ["s3:GetObject"], "Resource": ["arn:aws:s3:::${S3_BUCKET_NAME:-yarrow-documents}/*"]}]}'
+        rc alias set rustfs http://rustfs:9000 ${S3_ACCESS_KEY:-rustfsadmin} ${S3_SECRET_KEY:-rustfsadmin}
+        && rc mb rustfs/${S3_BUCKET_NAME:-yarrow-documents} --ignore-existing
+        && rc anonymous set download rustfs/${S3_BUCKET_NAME:-yarrow-documents}
 
 volumes:
   pg_data:
