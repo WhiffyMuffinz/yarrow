@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -28,10 +28,12 @@ from app.schemas import (
     ResendVerificationRequest,
     Token,
     UserCreate,
+    UserDelete,
     UserOut,
     VerifyEmailRequest,
     normalize_email,
 )
+from app.services.account import delete_account
 
 INVALID_CODE = "Invalid or expired verification code"
 # Same reply whether or not the address is registered, so resend cannot be
