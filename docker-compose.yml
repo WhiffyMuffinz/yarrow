@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   valkey:
-    image: valkey/valkey:7-alpine
+    image: valkey/valkey:9.0-alpine@sha256:187679e3bd4036959631e3f03983ab2ba503ab21e6fd0454d508e909db2ee989
     container_name: yarrow_valkey
     # Append-only log, synced every second, so logouts (revoked tokens,
     # US-19) survive a crash. The default snapshots alone could lose minutes
