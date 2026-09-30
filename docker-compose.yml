@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: paradedb/paradedb:pg18
+    image: paradedb/paradedb:pg18@sha256:a9cbdcfd8a1c349ab21590fd6d6dcbe7da489878df6502922d032dd64c1a7ae7
     container_name: yarrow_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-yarrow}
