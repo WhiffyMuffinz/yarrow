@@ -1,7 +1,6 @@
 import { RequireAuth } from '@/components/auth/RequireAuth';
-import Navbar from '@/components/layout/Navbar';
+import { AppShell } from '@/components/layout/AppShell';
 
-/** Every page under (dashboard) requires a signed-in user and has the nav bar. */
 export default function DashboardLayout({
   children,
 }: {
@@ -9,8 +8,7 @@ export default function DashboardLayout({
 }) {
   return (
     <RequireAuth>
-      <Navbar />
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <AppShell>{children}</AppShell>
     </RequireAuth>
   );
 }
