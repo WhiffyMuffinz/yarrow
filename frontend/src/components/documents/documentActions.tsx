@@ -1,9 +1,12 @@
 'use client';
 
 import { useId, useState } from 'react';
+import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import {
   cancelProcessing,
+  deleteDocument,
   renameDocument,
   type DocumentSummary,
 } from '@/lib/documents';
@@ -162,5 +165,93 @@ export function FailureNote({ doc }: { doc: DocumentSummary }) {
       {!failed && 'Some pages could not be read: '}
       {doc.error_message}
     </p>
+  );
+}
+
+/**
+ * Confirm dialog before permanently deleting a document. While the
+ * request is in flight the dialog cannot be dismissed, and a failure is shown
+ * inside it so the user can retry or back out.
+ */
+export function DeleteDocumentDialog({
+  doc,
+  open,
+  onClose,
+  onDeleted,
+}: {
+  doc: DocumentSummary;
+  open: boolean;
+  onClose: () => void;
+  /** Called once the document is gone from the server. */
+  onDeleted: (doc: DocumentSummary) => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const inProgress = doc.status === 'queued' || doc.status === 'processing';
+
+  function close() {
+    setError(null);
+    onClose();
+  }
+
+  async function confirm() {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteDocument(doc.id);
+      onDeleted(doc);
+    } catch (err) {
+      const apiError = toApiError(err);
+      if (apiError.status === 404) {
+        // Already deleted, e.g. from another tab: what the user asked for.
+        onDeleted(doc);
+        return;
+      }
+      setError(apiError.message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={close}
+      dismissible={!deleting}
+      title="Delete document?"
+      footer={
+        <>
+          <Button
+            variant="secondary"
+            className="sm:w-auto"
+            onClick={close}
+            disabled={deleting}
+            data-autofocus
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="danger"
+            className="sm:w-auto"
+            onClick={confirm}
+            loading={deleting}
+          >
+            {error ? 'Try again' : 'Delete'}
+          </Button>
+        </>
+      }
+    >
+      <p className="break-words">
+        <span className="font-medium text-slate-900">{doc.filename}</span> and
+        everything extracted from it will be permanently deleted.
+        {inProgress && ' Its processing will be stopped.'} This can&apos;t be
+        undone.
+      </p>
+      {error && (
+        <Alert className="mt-4" tone="error">
+          {error}
+        </Alert>
+      )}
+    </Modal>
   );
 }

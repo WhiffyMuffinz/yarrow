@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { listDocuments, type DocumentSummary } from './documents';
 import { toApiError } from './errors';
 
@@ -20,6 +20,9 @@ const RETRY_INTERVAL_MS = 8000;
 export function useDocuments(refreshKey = 0) {
   const [documents, setDocuments] = useState<DocumentSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Deleted this session. A poll that was already in flight when a document
+  // was deleted must not bring its row back.
+  const removedIds = useRef(new Set<string>());
 
   useEffect(() => {
     let current = true;
@@ -27,7 +30,9 @@ export function useDocuments(refreshKey = 0) {
 
     async function load() {
       try {
-        const docs = await listDocuments();
+        const docs = (await listDocuments()).filter(
+          (doc) => !removedIds.current.has(doc.id)
+        );
         if (!current) return;
         setDocuments(docs);
         setError(null);
@@ -55,5 +60,11 @@ export function useDocuments(refreshKey = 0) {
     );
   }, []);
 
-  return { documents, error, replace };
+  /** Drop a document that was just deleted. */
+  const remove = useCallback((id: string) => {
+    removedIds.current.add(id);
+    setDocuments((current) => (current ?? []).filter((doc) => doc.id !== id));
+  }, []);
+
+  return { documents, error, replace, remove };
 }
