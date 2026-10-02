@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea
     container_name: yarrow_postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-yarrow}
@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   valkey:
-    image: valkey/valkey:7-alpine
+    image: valkey/valkey:7-alpine@sha256:c6c2f0020be34bbf684a53a0ef716ab16ff70295186d4d9f2518435beb7afbff
     container_name: yarrow_valkey
     # Append-only log, synced every second, so logouts (revoked tokens,
     # US-19) survive a crash. The default snapshots alone could lose minutes
@@ -76,7 +76,7 @@ services:
       "
 
   mailpit:
-    image: axllent/mailpit:latest
+    image: axllent/mailpit:latest@sha256:ed9b00c609e77e99c79b93f1178255ebc271868920f2c69a8d166bd5634ed10d
     container_name: yarrow_mailpit
     ports:
       - "8025:8025" # web UI
