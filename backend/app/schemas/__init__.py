@@ -15,6 +15,7 @@ from .auth import (
     UserCreate,
     UserDelete,
     UserOut,
+    UserUpdate,
     VerifyEmailRequest,
     normalize_email,
 )
@@ -82,6 +83,7 @@ __all__ = [
     "UserCreate",
     "UserDelete",
     "UserOut",
+    "UserUpdate",
     "VerifyEmailRequest",
     "WarningNode",
     "normalize_email",

@@ -5,7 +5,7 @@ from uuid import UUID
 
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import delete, or_, select
-from sqlalchemy.exc import DBAPIError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from yarrow_db.locking import is_lock_timeout, lock_timeout_statement
 from yarrow_db.models import (
@@ -24,7 +24,16 @@ from yarrow_db.models import (
 )
 from yarrow_storage import get_storage
 
+from app.core.security import get_password_hash
+from app.schemas.auth import UserUpdate
+
 logger = logging.getLogger(__name__)
+
+
+class AccountUpdateError(str, Enum):
+    NOT_FOUND = "NOT_FOUND"
+    BUSY = "BUSY"
+    EMAIL_TAKEN = "EMAIL_TAKEN"
 
 
 class AccountDeletionError(str, Enum):
@@ -45,6 +54,13 @@ class AccountDeletionOutcome:
     def ok(self) -> bool:
         return self.error is None
 
+@dataclass
+class AccountUpdateOutcome:
+    """What happened during account update in terms the endpoint maps to HTTP"""
+
+    error: AccountUpdateError | None = None
+    detail: str | None = None
+    ok: bool = False
 
 async def _delete_rows(db: AsyncSession, user_id: UUID) -> tuple[int, list[str]]:
     """Delete everything the user owns, children first.
@@ -147,3 +163,37 @@ async def delete_account(db: AsyncSession, user_id: UUID) -> AccountDeletionOutc
         documents_deleted=documents_deleted,
         orphaned_keys=orphaned,
     )
+
+async def update_account(db: AsyncSession, user_id: UUID, payload: UserUpdate) -> AccountUpdateOutcome:
+    """Update a user's account information."""
+    try:
+        user = (await db.execute(select(User).where(User.id == user_id))).scalars().first()
+        if not user:
+            return AccountUpdateOutcome(ok=False, error=AccountUpdateError.NOT_FOUND, detail="User not found")
+
+        if payload.name is not None:
+            user.name = payload.name
+        if payload.email is not None:
+            user.email = payload.email
+        if payload.password is not None:
+            user.hashed_password = get_password_hash(payload.password)
+
+        await db.commit()
+        return AccountUpdateOutcome(ok=True)
+    except IntegrityError:
+        # users.email is unique: another account already uses the new email.
+        await db.rollback()
+        return AccountUpdateOutcome(
+            ok=False,
+            error=AccountUpdateError.EMAIL_TAKEN,
+            detail="An account with that email already exists",
+        )
+    except DBAPIError as exc:
+        await db.rollback()
+        if is_lock_timeout(exc):
+            return AccountUpdateOutcome(
+                ok=False,
+                error=AccountUpdateError.BUSY,
+                detail="An error occurred. Please try again shortly.",
+            )
+        raise
