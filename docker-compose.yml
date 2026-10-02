@@ -9,7 +9,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - pg_data:/var/lib/postgresql
     healthcheck:
       test:
         [
@@ -169,6 +169,10 @@ services:
       context: .
       dockerfile: worker/Dockerfile
     container_name: yarrow_worker
+    # Lets the worker reach the host-local OCR stack (ocr_cluster/x86,
+    # published on host port 8080) via INFERENCE_SERVICE_URL.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./worker:/app/worker
       - ./packages:/app/packages
