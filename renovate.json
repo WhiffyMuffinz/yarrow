@@ -39,7 +39,9 @@
     {
       "customType": "regex",
       "description": "Update poetry pip installs in Dockerfiles",
-      "fileMatch": ["(^|/)Dockerfile$"],
+      "managerFilePatterns": [
+        "/(^|/)Dockerfile$/"
+      ],
       "matchStrings": ["pip install poetry==(?<currentValue>.*?)\\s"],
       "depNameTemplate": "poetry",
       "packageNameTemplate": "poetry",
@@ -48,7 +50,9 @@
     {
       "customType": "regex",
       "description": "Update poetry pip installs in GitHub Actions",
-      "fileMatch": ["\\.github/workflows/.*\\.ya?ml$"],
+      "managerFilePatterns": [
+        "/\\.github/workflows/.*\\.ya?ml$/"
+      ],
       "matchStrings": ["pip install poetry==(?<currentValue>.*?)[\\s\"']"],
       "depNameTemplate": "poetry",
       "packageNameTemplate": "poetry",
