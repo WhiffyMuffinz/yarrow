@@ -14,19 +14,26 @@ export type ApiError = {
 const FIELD_LABELS: Record<string, string> = {
   email: 'Email',
   password: 'Password',
+  new_password: 'New password',
   name: 'Name',
   code: 'Code',
+  filename: 'Name',
 };
 
+const PASSWORD_FIELDS = new Set(['password', 'new_password']);
+
 function friendlyIssue(field: string, msg: string): string {
-  if (field === 'password' && /at least 8/i.test(msg)) {
+  if (PASSWORD_FIELDS.has(field) && /at least 8/i.test(msg)) {
     return 'Password must be at least 8 characters.';
   }
-  if (field === 'password' && /72 bytes/i.test(msg)) {
+  if (PASSWORD_FIELDS.has(field) && /72 bytes/i.test(msg)) {
     return 'Password is too long.';
   }
   if (field === 'email') return 'Enter a valid email address.';
   if (field === 'code') return 'Enter the 6-digit code from the email.';
+  if (field === 'filename' && /at most/i.test(msg)) {
+    return 'Name must be 255 characters or fewer.';
+  }
   if (/field required/i.test(msg)) {
     return `${FIELD_LABELS[field] ?? 'This field'} is required.`;
   }

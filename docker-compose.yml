@@ -24,6 +24,10 @@ services:
   valkey:
     image: valkey/valkey:7-alpine
     container_name: yarrow_valkey
+    # Append-only log, synced every second, so logouts (revoked tokens,
+    # US-19) survive a crash. The default snapshots alone could lose minutes
+    # of revocations, letting logged-out tokens work again after a restart.
+    command: ["valkey-server", "--appendonly", "yes", "--appendfsync", "everysec"]
     ports:
       - "${VALKEY_PORT:-6379}:6379"
     volumes:
@@ -60,9 +64,12 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+    # "mc alias set", not "mc config host add": current mc images removed the
+    # latter, so the alias was never defined and "mc mb myminio/..." quietly
+    # made a local folder instead of the bucket, which broke every upload.
     entrypoint: >
       /bin/sh -c "
-      /usr/bin/mc config host add myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
       /usr/bin/mc mb myminio/yarrow-documents --ignore-existing;
       /usr/bin/mc anonymous set public myminio/yarrow-documents;
       exit 0;
@@ -108,6 +115,14 @@ services:
       - SECRET_KEY=${SECRET_KEY:-supersecretkey_please_change_in_production}
       - JWT_ALGORITHM=HS256
       - ACCESS_TOKEN_EXPIRE_MINUTES=1440
+      - ENFORCE_HTTPS=${ENFORCE_HTTPS:-false}
+      # Addresses of the TLS-terminating proxy that uvicorn trusts to report
+      # the original https scheme. Must be set when ENFORCE_HTTPS is on behind
+      # a proxy, or every request looks like http and redirects forever.
+      - FORWARDED_ALLOW_IPS=${FORWARDED_ALLOW_IPS:-127.0.0.1}
+      - LOG_EMAIL_BODIES=${LOG_EMAIL_BODIES:-false}
+      # Where the frontend is reachable, used to build links in emails.
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
       - SMTP_HOST=${SMTP_HOST:-mailpit}
       - SMTP_PORT=${SMTP_PORT:-1025}
       - SMTP_USER=${SMTP_USER:-}
@@ -118,6 +133,9 @@ services:
       - VERIFICATION_MAX_ATTEMPTS=${VERIFICATION_MAX_ATTEMPTS:-5}
       - VERIFICATION_RESEND_COOLDOWN_SECONDS=${VERIFICATION_RESEND_COOLDOWN_SECONDS:-60}
       - VERIFICATION_MAX_SENDS_PER_HOUR=${VERIFICATION_MAX_SENDS_PER_HOUR:-5}
+      - PASSWORD_RESET_TTL_MINUTES=${PASSWORD_RESET_TTL_MINUTES:-30}
+      - PASSWORD_RESET_COOLDOWN_SECONDS=${PASSWORD_RESET_COOLDOWN_SECONDS:-60}
+      - PASSWORD_RESET_MAX_PER_HOUR=${PASSWORD_RESET_MAX_PER_HOUR:-3}
     depends_on:
       postgres:
         condition: service_healthy

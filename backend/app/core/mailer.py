@@ -1,9 +1,10 @@
 """Outbound email.
 
 One low-level ``send_email`` plus a helper per message type. Tests replace
-``send_email`` to capture messages; with no SMTP_HOST configured the message is
-logged instead, so the backend still runs (and the code can still be read from
-the log) on a laptop without Mailpit.
+``send_email`` to capture messages. With no SMTP_HOST configured, nothing is
+sent and the log records who the email was for. The body, which holds
+verification codes and password reset links, is logged only when
+LOG_EMAIL_BODIES is explicitly turned on for local development (NFR-6).
 """
 
 import logging
@@ -16,6 +17,22 @@ from .config import settings
 logger = logging.getLogger(__name__)
 
 
+def log_unsent_email(to: str, subject: str, body: str) -> None:
+    """Record an email that had no mail server to go to.
+
+    WARNING, not INFO: uvicorn's default logging hides INFO for app loggers.
+    The body stays out unless LOG_EMAIL_BODIES is on, because it contains
+    credentials (codes, reset links) and logs are kept and shared widely.
+    """
+    if settings.LOG_EMAIL_BODIES:
+        logger.warning(f"SMTP_HOST not set; email to {to} not sent:\n{body}")
+    else:
+        logger.warning(
+            f"SMTP_HOST not set; email to {to} ({subject!r}) not sent. "
+            "Run Mailpit, or set LOG_EMAIL_BODIES=true locally to log bodies."
+        )
+
+
 def send_email(to: str, subject: str, body: str) -> None:
     message = EmailMessage()
     message["From"] = settings.EMAIL_FROM
@@ -24,10 +41,7 @@ def send_email(to: str, subject: str, body: str) -> None:
     message.set_content(body)
 
     if not settings.SMTP_HOST:
-        # WARNING, not INFO: uvicorn's default logging hides INFO for app
-        # loggers, and this line is the only way to read the code in a local
-        # run without a mail server. Never reached when SMTP_HOST is set.
-        logger.warning(f"SMTP_HOST not set; email to {to} not sent:\n{body}")
+        log_unsent_email(to, subject, body)
         return
 
     with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10) as smtp:
@@ -48,5 +62,23 @@ def send_verification_code(to: str, code: str) -> None:
             f"Your verification code is {code}.\n\n"
             f"It expires in {settings.VERIFICATION_CODE_TTL_MINUTES} minutes. "
             "If you did not create a Yarrow account, you can ignore this email.\n"
+        ),
+    )
+
+
+def send_password_reset_link(to: str, token: str) -> None:
+    # The token goes after "#": browsers never send that part of a URL to a
+    # server, so it can't end up in access logs or in the Referer header sent
+    # to other sites. The reset page reads it with JavaScript.
+    link = f"{settings.NEXT_PUBLIC_APP_URL}/reset-password#token={token}"
+    send_email(
+        to,
+        "Reset your Yarrow password",
+        (
+            "Someone asked to reset the password for your Yarrow account.\n\n"
+            f"To choose a new password, open this link:\n{link}\n\n"
+            f"It works once and expires in {settings.PASSWORD_RESET_TTL_MINUTES} "
+            "minutes. If you did not ask for this, ignore this email: your "
+            "password has not changed.\n"
         ),
     )

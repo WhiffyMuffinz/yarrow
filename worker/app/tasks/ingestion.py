@@ -101,9 +101,16 @@ def process_document_task(self, job_id: str, page_to_process: tuple | None = Non
     storage_key = ""
     try:
         with session_scope() as session:
-            job = session.get(Job, UUID(job_id))
+            # Locked so that this and a cancel (US-42) cannot both win: the
+            # backend locks the same row before marking a queued job canceled.
+            job = session.get(Job, UUID(job_id), with_for_update=True)
             if job is None:
                 logger.error(f"Job {job_id} not found; nothing to process")
+                return
+            if job.status == "canceled":
+                # Revoking the Celery task is best effort (a restarted worker
+                # forgets revocations), so the row is the source of truth.
+                logger.info(f"Job {job_id} was canceled; skipping")
                 return
             job.status = "processing"
             job.current_stage = "downloading"

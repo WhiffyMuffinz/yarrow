@@ -47,3 +47,27 @@ export async function fetchMe(): Promise<User> {
   const res = await api.get<User>('/api/v1/auth/me');
   return res.data;
 }
+
+/**
+ * Revoke the current token on the server (US-19). Capped at 5 seconds so a
+ * dead connection can never leave someone stuck unable to sign out.
+ */
+export async function logoutRequest(): Promise<void> {
+  await api.post('/api/v1/auth/logout', null, { timeout: 5000 });
+}
+
+/** Ask for a reset link (US-67). Succeeds whether or not the email has an account. */
+export async function requestPasswordReset(email: string): Promise<void> {
+  await api.post('/api/v1/auth/password-reset/request', { email });
+}
+
+/** Set a new password using the token from an emailed reset link. */
+export async function confirmPasswordReset(
+  token: string,
+  newPassword: string
+): Promise<void> {
+  await api.post('/api/v1/auth/password-reset/confirm', {
+    token,
+    new_password: newPassword,
+  });
+}

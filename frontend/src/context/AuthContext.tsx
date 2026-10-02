@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import { fetchMe, type User } from '../lib/auth';
+import { fetchMe, logoutRequest, type User } from '../lib/auth';
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
@@ -24,7 +24,13 @@ type AuthContextType = {
   isAuthenticated: boolean;
   /** Store the token and load the user it belongs to. */
   login: (token: string) => Promise<User>;
-  logout: () => void;
+  /** End the session on the server, then locally, then go to /login. */
+  logout: () => Promise<void>;
+  /**
+   * Forget the local session without contacting the server, for when the
+   * server has already ended it (e.g. a password reset ends every session).
+   */
+  clearSession: () => void;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -77,12 +83,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    generation.current += 1;
+    // Ask the server to revoke this token first, while it is still stored and
+    // sent with the request. Then clear it locally no matter what: if the
+    // server can't be reached, the user must still be signed out here.
+    try {
+      await logoutRequest();
+    } catch {
+      // Already revoked, expired, or offline: nothing more to do.
+    }
+    localStorage.removeItem('token');
+    setUser(null);
+    setStatus('unauthenticated');
+    // A full page load, not a client-side route change, so no user data
+    // survives in memory anywhere in the app (AC 3).
+    window.location.href = '/login';
+  }, []);
+
+  const clearSession = useCallback(() => {
     generation.current += 1;
     localStorage.removeItem('token');
     setUser(null);
     setStatus('unauthenticated');
-    window.location.href = '/login';
   }, []);
 
   const value = useMemo(
@@ -92,8 +115,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       isAuthenticated: status === 'authenticated',
       login,
       logout,
+      clearSession,
     }),
-    [user, status, login, logout]
+    [user, status, login, logout, clearSession]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

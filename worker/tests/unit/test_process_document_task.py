@@ -101,3 +101,19 @@ class TestJobDeleted:
 
         assert job.status == "failed"
         assert job.error_message == "gateway down"
+
+
+# A job canceled while queued (US-42) must never be processed, even if its
+# Celery message was delivered despite the revoke.
+class TestCanceled:
+    def test_canceled_job_is_skipped(self, job, session, storage, parser):
+        job.status = "canceled"
+        job.document.status = "canceled"
+        parser.configure(page_count=3)
+
+        process_document_task(str(job.id))
+
+        assert job.status == "canceled"
+        assert job.document.status == "canceled"
+        assert job.current_stage == "queued"
+        assert session.added == []

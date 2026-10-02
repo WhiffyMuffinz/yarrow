@@ -1,16 +1,9 @@
-"""User, token and email verification models."""
+"""User, token, email verification and password reset models."""
 
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import (
-    AfterValidator,
-    BaseModel,
-    ConfigDict,
-    EmailStr,
-    Field,
-    field_validator,
-)
+from pydantic import AfterValidator, BaseModel, ConfigDict, EmailStr, Field
 
 
 def normalize_email(value: str) -> str:
@@ -27,19 +20,22 @@ def normalize_email(value: str) -> str:
 NormalizedEmail = Annotated[EmailStr, AfterValidator(normalize_email)]
 
 
-class UserCreate(BaseModel):
-    email: NormalizedEmail
+def _within_bcrypt_limit(value: str) -> str:
     # 72 bytes, not characters: that is bcrypt's hard input limit, and it
     # raises on anything longer rather than truncating.
-    password: str = Field(min_length=8)
-    name: str | None = None
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("password must be at most 72 bytes")
+    return value
 
-    @field_validator("password")
-    @classmethod
-    def _within_bcrypt_limit(cls, value: str) -> str:
-        if len(value.encode("utf-8")) > 72:
-            raise ValueError("password must be at most 72 bytes")
-        return value
+
+# The one set of password rules, for sign-up and for choosing a new password.
+NewPassword = Annotated[str, Field(min_length=8), AfterValidator(_within_bcrypt_limit)]
+
+
+class UserCreate(BaseModel):
+    email: NormalizedEmail
+    password: NewPassword
+    name: str | None = None
 
 
 class UserDelete(BaseModel):
@@ -52,6 +48,10 @@ class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    # Plain str on the way out: the value comes from our own database and was
+    # validated when it came in. Re-validating it here rejected the seeded
+    # "@yarrow.local" accounts (".local" is a reserved domain), which made
+    # /auth/me crash with a 500 for them.
     email: str
     name: str | None = None
     is_admin: bool
@@ -70,6 +70,17 @@ class VerifyEmailRequest(BaseModel):
 
 class ResendVerificationRequest(BaseModel):
     email: NormalizedEmail
+
+
+class PasswordResetRequest(BaseModel):
+    email: NormalizedEmail
+
+
+class PasswordResetConfirm(BaseModel):
+    # secrets.token_urlsafe(32) gives 43 characters; the bounds only reject
+    # obvious junk before any hashing or database work.
+    token: str = Field(min_length=20, max_length=200)
+    new_password: NewPassword
 
 
 class MessageResponse(BaseModel):
