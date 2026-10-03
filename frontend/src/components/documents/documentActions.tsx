@@ -8,6 +8,7 @@ import {
   cancelProcessing,
   deleteDocument,
   renameDocument,
+  reprocessDocument,
   type DocumentSummary,
 } from '@/lib/documents';
 import { cn } from '@/lib/cn';
@@ -144,6 +145,32 @@ export function useCancelProcessing(
   }
 
   return { cancel, canceling, cancelError };
+}
+
+/**
+ * Reprocess a finished, failed, or canceled document. The server refuses
+ * (409) once a job is queued or running.
+ */
+export function useReprocessDocument(
+  doc: DocumentSummary,
+  onChanged: (doc: DocumentSummary) => void
+) {
+  const [reprocessing, setReprocessing] = useState(false);
+  const [reprocessError, setReprocessError] = useState<string | null>(null);
+
+  async function reprocess() {
+    setReprocessing(true);
+    setReprocessError(null);
+    try {
+      onChanged(await reprocessDocument(doc.id));
+    } catch (err) {
+      setReprocessError(toApiError(err).message);
+    } finally {
+      setReprocessing(false);
+    }
+  }
+
+  return { reprocess, reprocessing, reprocessError };
 }
 
 /**
