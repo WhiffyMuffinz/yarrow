@@ -1,6 +1,7 @@
 """Unit tests for process_document_task"""
 
 import pytest
+from yarrow_db.models.region import RegionImage
 from yarrow_storage import ObjectNotFoundError
 
 from app.tasks.ingestion import AllPagesFailedError, process_document_task
@@ -117,3 +118,140 @@ class TestCanceled:
         assert job.document.status == "canceled"
         assert job.current_stage == "queued"
         assert session.added == []
+
+    def test_canceled_while_processing_saves_nothing(
+        self, job, session, storage, parser, monkeypatch
+    ):
+        """The user cancels during the OCR step: the run's results are
+        dropped and the document stays canceled."""
+        parser.configure(page_count=2)
+
+        def cancel_during_inference(self, page_to_process=None):
+            job.status = "canceled"
+            job.document.status = "canceled"
+
+        monkeypatch.setattr(type(parser), "process_sync", cancel_during_inference)
+
+        process_document_task(str(job.id))
+
+        assert job.status == "canceled"
+        assert job.document.status == "canceled"
+        assert session.added == []
+
+    def test_canceled_while_downloading_skips_ocr(
+        self, job, session, storage, parser, monkeypatch
+    ):
+        parser.configure(page_count=2)
+        ocr_ran = []
+        monkeypatch.setattr(
+            type(parser), "process_sync", lambda self, p=None: ocr_ran.append(True)
+        )
+        real_download = storage.download_bytes
+
+        def download_then_cancel(key):
+            job.status = "canceled"
+            return real_download(key)
+
+        monkeypatch.setattr(storage, "download_bytes", download_then_cancel)
+
+        process_document_task(str(job.id))
+
+        assert ocr_ran == []
+        assert job.status == "canceled"
+        assert session.added == []
+
+    def test_error_after_cancel_is_not_a_failure(
+        self, job, session, storage, parser, monkeypatch
+    ):
+        """An error in a run the user already canceled leaves it canceled
+        rather than failed, and the task does not raise."""
+        parser.configure(page_count=1)
+
+        def cancel_then_crash(self, page_to_process=None):
+            job.status = "canceled"
+            job.document.status = "canceled"
+            raise RuntimeError("inference server went away")
+
+        monkeypatch.setattr(type(parser), "process_sync", cancel_then_crash)
+
+        process_document_task(str(job.id))
+
+        assert job.status == "canceled"
+        assert job.document.status == "canceled"
+        assert job.error_message is None
+
+
+class TestFigureImages:
+    KEY = "documents/abc/figures/region.png"
+
+    def _image_keys(self, session):
+        return [obj.image_key for obj in session.added if isinstance(obj, RegionImage)]
+
+    def test_crops_are_uploaded(self, job, store, session, storage, parser):
+        """Test whether cropped images are uploaded to storage"""
+        parser.configure(figures={self.KEY: b"png"})
+
+        process_document_task(str(job.id))
+
+        assert store[self.KEY] == b"png"
+        assert self._image_keys(session) == [self.KEY]
+
+    def test_failed_upload_drops_only_the_picture(self, job, session, storage, parser, monkeypatch):
+        """Test that a failed upload only drops the picture"""
+        parser.configure(figures={self.KEY: b"png"})
+
+        def upload_file(file, key):
+            raise RuntimeError("storage down")
+
+        monkeypatch.setattr(storage, "upload_file", upload_file)
+
+        process_document_task(str(job.id))
+
+        assert job.status == "completed"
+        assert self._image_keys(session) == []
+
+    def test_uncommitted_crops_are_removed(self, job, store, session, storage, parser, monkeypatch):
+        """Test if image is removed when the database fails before commit"""
+        parser.configure(figures={self.KEY: b"png"})
+
+        # Fails after the crops are uploaded, before anything is committed
+        def add_all(objects):
+            raise RuntimeError("database down")
+
+        monkeypatch.setattr(session, "add_all", add_all)
+
+        with pytest.raises(RuntimeError):
+            process_document_task(str(job.id))
+
+        assert self.KEY not in store
+
+    def test_replaced_crops_are_removed_after_commit(self, job, store, session, storage, parser):
+        """Test if replaced crops are removed after commit"""
+        
+        old_key = "documents/abc/figures/old.png"
+        store[old_key] = b"old"
+        session.existing_image_keys = [old_key]
+        parser.configure(figures={self.KEY: b"png"})
+
+        process_document_task(str(job.id))
+
+        assert old_key not in store
+        assert store[self.KEY] == b"png"
+
+    def test_replaced_crops_are_kept_when_nothing_is_committed(self, job, store, session, storage, parser, monkeypatch):
+        """Test if replaced crops are kept when nothing is committed"""
+        
+        old_key = "documents/abc/figures/old.png"
+        store[old_key] = b"old"
+        session.existing_image_keys = [old_key]
+
+        # Fails after the crops are uploaded, before anything is committed
+        def add_all(objects):
+            raise RuntimeError("database down")
+
+        monkeypatch.setattr(session, "add_all", add_all)
+
+        with pytest.raises(RuntimeError):
+            process_document_task(str(job.id))
+
+        assert store[old_key] == b"old"

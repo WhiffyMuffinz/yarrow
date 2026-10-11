@@ -26,9 +26,17 @@ from .document import (
     DocumentRename,
     JobOut,
     PageOut,
+    ReprocessInfo,
     UploadAccepted,
     UploadRejected,
     UploadResponse,
+)
+from .integrations import (
+    CloudConnectionOut,
+    OAuthAuthorizeResponse,
+    OAuthCallbackRequest,
+    SyncResponse,
+    SyncStatusOut,
 )
 from .parsed import (
     SCHEMA_VERSION,
@@ -37,6 +45,11 @@ from .parsed import (
     PageNode,
     RegionNode,
     WarningNode,
+)
+from .sharing import (
+    DocumentShareOut,
+    ShareDocumentRequest,
+    UpdateShareRequest,
 )
 from .table import (
     MergeCandidate,
@@ -52,9 +65,11 @@ from .table import (
 __all__ = [
     "SCHEMA_VERSION",
     "BBox",
+    "CloudConnectionOut",
     "DocumentDetail",
     "DocumentOut",
     "DocumentRename",
+    "DocumentShareOut",
     "DocumentStats",
     "DocumentTree",
     "JobOut",
@@ -64,19 +79,26 @@ __all__ = [
     "MessageResponse",
     "NewPassword",
     "NormalizedEmail",
+    "OAuthAuthorizeResponse",
+    "OAuthCallbackRequest",
     "PageNode",
     "PageOut",
     "PasswordResetConfirm",
     "PasswordResetRequest",
     "RegionNode",
+    "ReprocessInfo",
     "ResendVerificationRequest",
     "RowSource",
+    "ShareDocumentRequest",
     "StrictModel",
+    "SyncResponse",
+    "SyncStatusOut",
     "TableCellNode",
     "TableMutationResult",
     "TableNode",
     "TablePart",
     "Token",
+    "UpdateShareRequest",
     "UploadAccepted",
     "UploadRejected",
     "UploadResponse",
