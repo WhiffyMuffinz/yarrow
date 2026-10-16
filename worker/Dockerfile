@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
 
 # Build context is the repository root so that the shared ../packages/yarrow-db
 # path dependency resolves. The repo layout is preserved inside the image.
