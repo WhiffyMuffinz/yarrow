@@ -20,6 +20,7 @@ from yarrow_db.models import (
     Table,
     TableCell,
 )
+from yarrow_db.models import Warning
 from yarrow_db.models.region import RegionImage
 
 from app.core.config import settings
@@ -29,6 +30,7 @@ from app.pipeline.file_loaders.jpeg_loader import JPEGLoader
 from app.pipeline.file_loaders.jpg_loader import JPGLoader
 from app.pipeline.file_loaders.pdf_loader import PDFLoader
 from app.pipeline.file_loaders.png_loader import PNGLoader
+from app.pipeline.quality_checker import QualityChecker
 from app.pipeline.reading_order import order_blocks
 
 logger = logging.getLogger(__name__)
@@ -176,6 +178,8 @@ class DocumentParser:
         # PNG crops of the figure regions built by to_model_objects, by the
         # storage key their RegionImage points at. The caller uploads them.
         self.figure_images: dict[str, bytes] = {}
+
+        self.quality_checker = QualityChecker()
 
     @property
     def failed_page_numbers(self) -> list[int]:
@@ -617,6 +621,7 @@ class DocumentParser:
         document.page_count = len(pruned_result)
 
         pages = []
+        warnings = []
         regions = []
         tables = []
         all_objects = []
@@ -629,7 +634,7 @@ class DocumentParser:
             if target_pages is not None and page_index + 1 not in target_pages:
                 # Page is not in the target pages, skip it
                 continue
-            
+
             # Construct page object
             page_id = uuid.uuid4()
             error_message = self.page_errors.get(page_index)
@@ -643,7 +648,21 @@ class DocumentParser:
                 error_message=error_message,
             )
             pages.append(page)
-            
+
+            # Quality warnings do not stop the page's content from being built
+            try:
+                page_bytes = base64.b64decode(self.pages[page_index])
+                warnings.extend(
+                    Warning(
+                        page_id=page_id, warning_type="quality", message=message
+                    )
+                    for message in self.quality_checker.check_quality(
+                        page_bytes, page_data
+                    )
+                )
+            except Exception:
+                logger.exception(f"Quality check failed for page {page_index + 1}")
+
             if page_data == {}:
                 # Page processing failed, continue
                 continue
@@ -666,6 +685,7 @@ class DocumentParser:
 
         # Return a flat list of all objects
         all_objects.extend(pages)
+        all_objects.extend(warnings)
         all_objects.extend(regions)
         all_objects.extend(tables)
 
