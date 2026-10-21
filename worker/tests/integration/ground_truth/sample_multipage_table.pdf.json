@@ -12,7 +12,7 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true

@@ -12,84 +12,84 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -101,7 +101,7 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -113,28 +113,28 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -148,56 +148,56 @@
           },
           {
             "reading_order": 5,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -211,49 +211,49 @@
           },
           {
             "reading_order": 14,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 16,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 18,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 19,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 20,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -272,56 +272,56 @@
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -335,56 +335,56 @@
           },
           {
             "reading_order": 10,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 16,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -410,49 +410,49 @@
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -466,56 +466,56 @@
           },
           {
             "reading_order": 9,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 16,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -541,49 +541,49 @@
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -597,49 +597,49 @@
           },
           {
             "reading_order": 9,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -665,56 +665,56 @@
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -728,49 +728,49 @@
           },
           {
             "reading_order": 10,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 16,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -789,49 +789,49 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -845,49 +845,49 @@
           },
           {
             "reading_order": 8,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -901,49 +901,49 @@
           },
           {
             "reading_order": 16,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 18,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 19,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 20,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 21,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 22,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -962,49 +962,49 @@
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "figure_title",
+            "region_type": "paragraph",
             "block_label": "figure_title",
             "is_table": false,
             "has_text": true
@@ -1018,49 +1018,49 @@
           },
           {
             "reading_order": 9,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1074,14 +1074,14 @@
           },
           {
             "reading_order": 17,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 18,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1093,35 +1093,35 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1135,49 +1135,49 @@
           },
           {
             "reading_order": 6,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1191,28 +1191,28 @@
           },
           {
             "reading_order": 14,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 16,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1224,21 +1224,21 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1252,49 +1252,49 @@
           },
           {
             "reading_order": 4,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1308,49 +1308,49 @@
           },
           {
             "reading_order": 12,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 16,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 18,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1376,49 +1376,49 @@
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1432,49 +1432,49 @@
           },
           {
             "reading_order": 9,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1488,28 +1488,28 @@
           },
           {
             "reading_order": 17,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 18,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 19,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 20,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1521,21 +1521,21 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1549,42 +1549,42 @@
           },
           {
             "reading_order": 4,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1598,49 +1598,49 @@
           },
           {
             "reading_order": 11,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 16,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1659,42 +1659,42 @@
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1708,49 +1708,49 @@
           },
           {
             "reading_order": 8,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1764,14 +1764,14 @@
           },
           {
             "reading_order": 16,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1783,28 +1783,28 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1818,49 +1818,49 @@
           },
           {
             "reading_order": 5,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1874,49 +1874,49 @@
           },
           {
             "reading_order": 13,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 16,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 18,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 19,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1935,49 +1935,49 @@
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -1991,49 +1991,49 @@
           },
           {
             "reading_order": 9,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -2047,21 +2047,21 @@
           },
           {
             "reading_order": 17,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 18,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 19,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -2073,28 +2073,28 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -2108,56 +2108,56 @@
           },
           {
             "reading_order": 5,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -2171,49 +2171,49 @@
           },
           {
             "reading_order": 14,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 16,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 18,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 19,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 20,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -2239,49 +2239,49 @@
           },
           {
             "reading_order": 1,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -2295,49 +2295,49 @@
           },
           {
             "reading_order": 9,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 15,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -2351,7 +2351,7 @@
           },
           {
             "reading_order": 17,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
@@ -2363,49 +2363,49 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "figure_title",
+            "region_type": "paragraph",
             "block_label": "figure_title",
             "is_table": false,
             "has_text": true
@@ -2419,49 +2419,49 @@
           },
           {
             "reading_order": 8,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 11,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 12,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 13,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 14,
-            "region_type": "figure_title",
+            "region_type": "paragraph",
             "block_label": "figure_title",
             "is_table": false,
             "has_text": true
@@ -2475,28 +2475,28 @@
           },
           {
             "reading_order": 16,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 17,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 18,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 19,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -2508,7 +2508,7 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
@@ -2594,7 +2594,7 @@
           },
           {
             "reading_order": 1,
-            "region_type": "figure_title",
+            "region_type": "paragraph",
             "block_label": "figure_title",
             "is_table": false,
             "has_text": true

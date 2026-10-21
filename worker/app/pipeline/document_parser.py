@@ -46,6 +46,14 @@ TABLE_LABELS = {"table"}
 TABLE_TITLE_LABELS = {"table_title", "table_caption"}
 IMAGE_LABELS = {"image", "figure", "chart", "seal"}
 
+REGION_TYPE_MAP = {
+    "title": "header",
+    "text": "paragraph",
+    "figure": "figure",
+    "table": "table",
+    "header": "header",
+}
+
 
 def iou(a: Box, b: Box) -> float:
     """Compute the Intersection over Union (IoU) of two bounding boxes.
@@ -509,14 +517,7 @@ class DocumentParser:
                 bbox = (float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3]))
 
             # Map raw labels to RegionType enum
-            region_type_map = {
-                "title": "header",
-                "text": "paragraph",
-                "figure": "figure",
-                "table": "table",
-                "header": "header",
-            }
-            mapped_type = region_type_map.get(str(label).lower(), "paragraph") if label else "paragraph"
+            mapped_type = REGION_TYPE_MAP.get(str(label).lower(), "paragraph") if label else "paragraph"
 
             region = Region(
                 id=uuid.uuid4(),
