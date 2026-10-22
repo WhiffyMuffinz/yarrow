@@ -19,8 +19,8 @@ from yarrow_db.models import (
     RegionText,
     Table,
     TableCell,
+    Warning,
 )
-from yarrow_db.models import Warning
 from yarrow_db.models.region import RegionImage
 
 from app.core.config import settings

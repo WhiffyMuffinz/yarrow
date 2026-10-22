@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     search,
     sharing,
     tables,
+    warnings,
 )
 
 api_router = APIRouter()
@@ -20,6 +21,7 @@ api_router.include_router(sharing.router, prefix="/documents", tags=["sharing"])
 api_router.include_router(parsed.router, prefix="/documents", tags=["parsed"])
 api_router.include_router(tables.router, prefix="/documents", tags=["tables"])
 api_router.include_router(search.router, prefix="/search", tags=["search"])
+api_router.include_router(warnings.router, prefix="/warnings", tags=["warnings"])
 api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(
     integrations.router, prefix="/integrations", tags=["integrations"]
