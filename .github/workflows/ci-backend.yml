@@ -1,10 +1,26 @@
-name: CI
+name: CI (backend)
 
 on:
   push:
     branches: ["main"]
+    paths:
+      - "backend/**"
+      - "worker/**"
+      - "packages/**"
+      - "docker-compose.yml"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ci-backend.yml"
   pull_request:
     branches: ["main"]
+    paths:
+      - "backend/**"
+      - "worker/**"
+      - "packages/**"
+      - "docker-compose.yml"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ci-backend.yml"
 
 jobs:
   backend:
@@ -34,7 +50,7 @@ jobs:
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.11"
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: |
           pip install poetry==2.5.1
           cd backend
@@ -43,11 +59,20 @@ jobs:
           # set), so installing the root project errors on poetry >= 2. Use
           # --no-root, matching the backend/worker Dockerfiles.
           poetry install --no-root
-      - name: Lint and Format Check
+      - name: Install worker dependencies
+        run: |
+          cd worker
+          # Non-packaged like the backend; install deps only.
+          poetry install --no-root
+      - name: Lint backend
         run: |
           cd backend
           ruff check .
-      - name: Run Tests
+      - name: Lint worker
+        run: |
+          cd worker
+          ruff check .
+      - name: Run backend tests
         env:
           POSTGRES_USER: yarrow
           POSTGRES_PASSWORD: yarrow_password
@@ -59,42 +84,7 @@ jobs:
         run: |
           cd backend
           pytest
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
-        with:
-          node-version: "24"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install dependencies
+      - name: Run worker tests
         run: |
-          cd frontend
-          npm ci
-      - name: Lint and Format Check
-        run: |
-          cd frontend
-          npm run lint
-          npx prettier --check .
-      - name: Type Check
-        run: |
-          cd frontend
-          npx tsc --noEmit
-      - name: Build
-        run: |
-          cd frontend
-          npm run build
-
-  compose-sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
-        with:
-          python-version: "3.11"
-      - name: Check dev compose is in sync with root compose
-        run: python3 scripts/sync-dev-compose.py --check
+          cd worker
+          pytest -m "not integration"
