@@ -49,7 +49,6 @@ function Warnings() {
     return () => {
       current = false;
     };
-
   }, []);
 
   function onTypeChange(value: string) {
@@ -58,10 +57,12 @@ function Warnings() {
     });
   }
 
-  const shown = load.state === 'ready'
-    ? load.warnings.filter(
-      (warning) => !type || warningKind(warning.message) === type
-    ) : [];
+  const shown =
+    load.state === 'ready'
+      ? load.warnings.filter(
+          (warning) => !type || warningKind(warning.message) === type
+        )
+      : [];
 
   return (
     <div className="space-y-8">

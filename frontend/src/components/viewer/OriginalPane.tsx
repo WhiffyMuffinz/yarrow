@@ -101,7 +101,7 @@ export function OriginalPane({
     if (!original || initialPage <= 1) {
       return;
     }
-    
+
     scrollToPage(initialPage, 'original');
   }, [original, initialPage, scrollToPage]);
 

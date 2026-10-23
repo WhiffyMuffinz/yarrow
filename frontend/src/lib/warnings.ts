@@ -9,13 +9,7 @@ export type WarningEntry = {
 };
 
 export type WarningKind =
-  | 'blur'
-  | 'skew'
-  | 'truncation'
-  | 'dark'
-  | 'bright'
-  | 'unreadable'
-  | 'other';
+  'blur' | 'skew' | 'truncation' | 'dark' | 'bright' | 'unreadable' | 'other';
 
 export const FILTERABLE_KINDS: WarningKind[] = [
   'blur',
@@ -26,7 +20,10 @@ export const FILTERABLE_KINDS: WarningKind[] = [
 ];
 
 // Mapping from warning kind to human readable label and detail
-export const WARNING_KINDS: Record<WarningKind, { label: string; detail: string }> = {
+export const WARNING_KINDS: Record<
+  WarningKind,
+  { label: string; detail: string }
+> = {
   blur: { label: 'Blurry', detail: 'Text on this page may be misread.' },
   skew: {
     label: 'Tilted',
@@ -78,7 +75,7 @@ export function warningLabel(message: string | null): string {
 // Translate a warning message into a human-readable detail
 export function warningDetail(message: string | null): string {
   const kind = warningKind(message);
-  return kind === 'other' ? message ?? '' : WARNING_KINDS[kind].detail;
+  return kind === 'other' ? (message ?? '') : WARNING_KINDS[kind].detail;
 }
 
 // Get the URL of the document page the warning is about

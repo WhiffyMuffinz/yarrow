@@ -201,7 +201,7 @@ function PageContent({
             region={region}
             context={{
               table: region.region_table_id
-                ? placements.get(region.region_table_id) ?? null
+                ? (placements.get(region.region_table_id) ?? null)
                 : null,
               captioned: previous ? regionKind(previous) === 'caption' : false,
             }}
@@ -311,7 +311,7 @@ export function ExtractedContentList() {
     if (openedAtPage.current || !tree || initialPage <= 1) {
       return;
     }
-    
+
     openedAtPage.current = true;
     scrollToPage(initialPage, 'extracted');
   }, [tree, initialPage, scrollToPage]);

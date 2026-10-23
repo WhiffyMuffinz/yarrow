@@ -43,7 +43,7 @@ function DocumentViewer({ documentId }: { documentId: string }) {
   const searchParams = useSearchParams();
   const regionId = searchParams.get('region');
   const query = searchParams.get('q') ?? '';
-  
+
   const requestedPage = Number(searchParams.get('page'));
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [attempt, setAttempt] = useState(0);
