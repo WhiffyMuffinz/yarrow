@@ -17,7 +17,7 @@
     "frontend/**/*.{json,css,md,html}": [
       "prettier --write"
     ],
-    "{backend,worker}/**/*.py": [
+    "{backend,worker,packages}/**/*.py": [
       "poetry -C backend run ruff check --fix",
       "poetry -C backend run ruff format"
     ]
