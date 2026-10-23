@@ -3,12 +3,6 @@ name: CI (frontend)
 on:
   push:
     branches: ["main"]
-    paths:
-      - "frontend/**"
-      - "docker-compose.yml"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/ci-frontend.yml"
   pull_request:
     branches: ["main"]
     paths:

@@ -3,14 +3,6 @@ name: CI (backend)
 on:
   push:
     branches: ["main"]
-    paths:
-      - "backend/**"
-      - "worker/**"
-      - "packages/**"
-      - "docker-compose.yml"
-      - "package.json"
-      - "package-lock.json"
-      - ".github/workflows/ci-backend.yml"
   pull_request:
     branches: ["main"]
     paths:

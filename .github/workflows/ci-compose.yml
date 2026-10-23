@@ -3,11 +3,6 @@ name: CI (compose)
 on:
   push:
     branches: ["main"]
-    paths:
-      - "docker-compose.yml"
-      - ".devcontainer/**"
-      - "scripts/sync-dev-compose.py"
-      - ".github/workflows/ci-compose.yml"
   pull_request:
     branches: ["main"]
     paths:
