@@ -43,6 +43,8 @@ function DocumentViewer({ documentId }: { documentId: string }) {
   const searchParams = useSearchParams();
   const regionId = searchParams.get('region');
   const query = searchParams.get('q') ?? '';
+
+  const requestedPage = Number(searchParams.get('page'));
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -134,11 +136,21 @@ function DocumentViewer({ documentId }: { documentId: string }) {
     );
   }
 
+  // A page outside the document (a stale link) opens at the first page
+  const pageCount = load.tree.document.page_count ?? load.tree.stats.page_count;
+  const initialPage =
+    Number.isInteger(requestedPage) &&
+    requestedPage >= 1 &&
+    requestedPage <= pageCount
+      ? requestedPage
+      : 1;
+
   return (
     <ViewerProvider
       document={load.tree.document}
       tree={load.tree}
       initialMode={defaultMode()}
+      initialPage={initialPage}
       refresh={refresh}
       highlightRegionId={regionId}
       highlightQuery={query}

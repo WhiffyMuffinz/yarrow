@@ -12,21 +12,21 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "paragraph_title",
+            "region_type": "paragraph",
             "block_label": "paragraph_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true

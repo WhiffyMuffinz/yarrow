@@ -17,6 +17,7 @@ from yarrow_db.models import (
     RegionText,
     Table,
     TableCell,
+    Warning,
 )
 from yarrow_db.session import session_scope
 
@@ -308,3 +309,43 @@ class TestDocumentProcessing:
 
                 # Verifies all the model objects are updated correctly after reprocessing
                 assert_matches_ground_truth(seeded_document.document_id, gt["model_graph"], merged=merge_consecutive_tables)
+
+
+class TestQualityChecker:
+    """Integration tests for the per-page quality warnings."""
+
+    expected_warnings: ClassVar[dict[str, set[str]]] = {
+        "scan_normal.png": set(),
+        "scan_skewed.png": {"Image is skewed"},
+        "scan_blurry.png": {"Image is blurry"},
+        "scan_truncated.png": {"Image is truncated"},
+        "scan_dark.png": {"Image is too dark"},
+        "scan_bright.png": {"Image is too bright"},
+    }
+    filenames: ClassVar[list[str]] = list(expected_warnings)
+
+    HERE = os.path.dirname(os.path.abspath(__file__))
+    TEST_DOCS_DIR = os.path.join(HERE, "test_docs")
+
+    @pytest.mark.parametrize("filename", filenames)
+    def test_warnings(self, test_initializer, filename):
+        """Processes a scan and checks the warnings stored for its page"""
+
+        filepath = os.path.join(TestQualityChecker.TEST_DOCS_DIR, filename)
+        (seeded_document,) = test_initializer.configure(filenames=[filename], filepaths=[filepath])
+
+        process_document_task(job_id=str(seeded_document.job_id))
+
+        with session_scope() as session:
+            messages = session.scalars(
+                select(Warning.message).join(Page, Warning.page_id == Page.id).where(Page.document_id == seeded_document.document_id)
+            ).all()
+
+        # The skew message carries the measured angle ("Image is skewed by -18.4°"), so compare on what precedes it
+        kinds = {re.sub(r" by .*$", "", message) for message in messages}
+        expected = TestQualityChecker.expected_warnings[filename]
+
+        if expected:
+            assert expected <= kinds, f"{filename}: expected {sorted(expected)}, got {sorted(kinds)}"
+        else:
+            assert kinds == set(), f"{filename}: expected no warnings, got {sorted(kinds)}"

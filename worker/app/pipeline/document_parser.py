@@ -19,6 +19,7 @@ from yarrow_db.models import (
     RegionText,
     Table,
     TableCell,
+    Warning,
 )
 from yarrow_db.models.region import RegionImage
 
@@ -29,6 +30,7 @@ from app.pipeline.file_loaders.jpeg_loader import JPEGLoader
 from app.pipeline.file_loaders.jpg_loader import JPGLoader
 from app.pipeline.file_loaders.pdf_loader import PDFLoader
 from app.pipeline.file_loaders.png_loader import PNGLoader
+from app.pipeline.quality_checker import QualityChecker
 from app.pipeline.reading_order import order_blocks
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,14 @@ LAYOUT_SCORE_IOU_THRESHOLD = 0.5
 TABLE_LABELS = {"table"}
 TABLE_TITLE_LABELS = {"table_title", "table_caption"}
 IMAGE_LABELS = {"image", "figure", "chart", "seal"}
+
+REGION_TYPE_MAP = {
+    "title": "header",
+    "text": "paragraph",
+    "figure": "figure",
+    "table": "table",
+    "header": "header",
+}
 
 
 def iou(a: Box, b: Box) -> float:
@@ -176,6 +186,8 @@ class DocumentParser:
         # PNG crops of the figure regions built by to_model_objects, by the
         # storage key their RegionImage points at. The caller uploads them.
         self.figure_images: dict[str, bytes] = {}
+
+        self.quality_checker = QualityChecker()
 
     @property
     def failed_page_numbers(self) -> list[int]:
@@ -505,14 +517,7 @@ class DocumentParser:
                 bbox = (float(bbox[0]), float(bbox[1]), float(bbox[2]), float(bbox[3]))
 
             # Map raw labels to RegionType enum
-            region_type_map = {
-                "title": "header",
-                "text": "paragraph",
-                "figure": "figure",
-                "table": "table",
-                "header": "header",
-            }
-            mapped_type = region_type_map.get(str(label).lower(), "paragraph") if label else "paragraph"
+            mapped_type = REGION_TYPE_MAP.get(str(label).lower(), "paragraph") if label else "paragraph"
 
             region = Region(
                 id=uuid.uuid4(),
@@ -617,6 +622,7 @@ class DocumentParser:
         document.page_count = len(pruned_result)
 
         pages = []
+        warnings = []
         regions = []
         tables = []
         all_objects = []
@@ -629,7 +635,7 @@ class DocumentParser:
             if target_pages is not None and page_index + 1 not in target_pages:
                 # Page is not in the target pages, skip it
                 continue
-            
+
             # Construct page object
             page_id = uuid.uuid4()
             error_message = self.page_errors.get(page_index)
@@ -643,7 +649,21 @@ class DocumentParser:
                 error_message=error_message,
             )
             pages.append(page)
-            
+
+            # Quality warnings do not stop the page's content from being built
+            try:
+                page_bytes = base64.b64decode(self.pages[page_index])
+                warnings.extend(
+                    Warning(
+                        page_id=page_id, warning_type="quality", message=message
+                    )
+                    for message in self.quality_checker.check_quality(
+                        page_bytes, page_data
+                    )
+                )
+            except Exception:
+                logger.exception(f"Quality check failed for page {page_index + 1}")
+
             if page_data == {}:
                 # Page processing failed, continue
                 continue
@@ -666,6 +686,7 @@ class DocumentParser:
 
         # Return a flat list of all objects
         all_objects.extend(pages)
+        all_objects.extend(warnings)
         all_objects.extend(regions)
         all_objects.extend(tables)
 

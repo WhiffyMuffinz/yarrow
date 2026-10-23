@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  AlertTriangle,
   LayoutDashboard,
   ListChecks,
   Search,
@@ -33,6 +34,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   { href: '/upload', label: 'Upload', icon: Upload },
   { href: '/jobs', label: 'Jobs', icon: ListChecks },
+  { href: '/warnings', label: 'Warnings', icon: AlertTriangle },
   { href: '/search', label: 'Search', icon: Search },
   { href: '/settings', label: 'Settings', icon: Settings },
   { href: '/admin', label: 'Admin', icon: Shield, adminOnly: true },

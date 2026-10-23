@@ -50,7 +50,7 @@ export function OriginalPane({
 }: {
   renderPageOverlay?: RenderPageOverlay;
 }) {
-  const { document, setPageCount } = useViewer();
+  const { document, setPageCount, initialPage, scrollToPage } = useViewer();
   const onScroll = usePageTracking('original');
   const [original, setOriginal] = useState<Original | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +95,15 @@ export function OriginalPane({
       pdf?.destroy();
     };
   }, [document.id, document.file_type, setPageCount, attempt]);
+
+  // Opened from a ?page= link
+  useEffect(() => {
+    if (!original || initialPage <= 1) {
+      return;
+    }
+
+    scrollToPage(initialPage, 'original');
+  }, [original, initialPage, scrollToPage]);
 
   return (
     <div

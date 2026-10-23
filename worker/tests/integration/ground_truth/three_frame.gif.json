@@ -12,7 +12,7 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -24,7 +24,7 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
@@ -36,7 +36,7 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true

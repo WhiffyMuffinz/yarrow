@@ -33,6 +33,9 @@ type ViewerState = {
   // The page the reader is on, from whichever pane they last scrolled.
   currentPage: number;
 
+  // The page the viewer opened at from a ?page= link
+  initialPage: number;
+
   // Bring a page to the top of every visible pane.
   scrollToPage: (page: number, pane?: Pane) => void;
 
@@ -67,6 +70,7 @@ export function ViewerProvider({
   document,
   tree,
   initialMode = 'split',
+  initialPage = 1,
   refresh,
   highlightRegionId: initialHighlightRegionId = null,
   highlightQuery: initialHighlightQuery = '',
@@ -75,6 +79,7 @@ export function ViewerProvider({
   document: DocumentSummary;
   tree: DocumentTree | null;
   initialMode?: ViewMode;
+  initialPage?: number;
   refresh: () => void;
   highlightRegionId?: string | null;
   highlightQuery?: string;
@@ -84,7 +89,7 @@ export function ViewerProvider({
   const [pageCount, setPageCount] = useState<number | null>(
     document.page_count
   );
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialPage);
   const [highlightRegionId, setHighlightRegionId] = useState<string | null>(
     initialHighlightRegionId
   );
@@ -99,7 +104,7 @@ export function ViewerProvider({
   }, []);
 
   // Read synchronously by scroll handlers, which can fire before a re-render
-  const currentPageRef = useRef(1);
+  const currentPageRef = useRef(initialPage);
 
   const anchors = useRef<Record<Pane, Map<number, HTMLElement>>>({
     original: new Map(),
@@ -148,6 +153,7 @@ export function ViewerProvider({
       mode,
       setMode,
       currentPage,
+      initialPage,
       scrollToPage,
       registerPage,
       reportVisiblePage,
@@ -168,6 +174,7 @@ export function ViewerProvider({
       pageCount,
       mode,
       currentPage,
+      initialPage,
       scrollToPage,
       registerPage,
       refresh,
