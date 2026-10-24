@@ -2,13 +2,15 @@ import { useViewer } from './ViewerContext';
 import type { PageOverlayInfo } from './PageView';
 import { isRegionFilterMatch } from './regionRenderers';
 import { cn } from '@/lib/cn';
+import { isLowConfidence } from '@/lib/viewer';
 
 export function BoundingBoxCanvas({
   page,
   displayWidth,
   displayHeight,
 }: PageOverlayInfo) {
-  const { activeRegionId, setActiveRegionId, regionFilter } = useViewer();
+  const { activeRegionId, setActiveRegionId, regionFilter, showLowConfidence } =
+    useViewer();
 
   if (!page || !page.width || !page.height) return null;
 
@@ -25,8 +27,10 @@ export function BoundingBoxCanvas({
           region.bbox.x1,
           region.bbox.y1,
         ];
+        const { confidence } = region;
         const isActive = activeRegionId === region.id;
         const isFilterMatch = isRegionFilterMatch(region, regionFilter);
+        const flagged = showLowConfidence && isLowConfidence(region);
 
         return (
           <div
@@ -37,7 +41,9 @@ export function BoundingBoxCanvas({
                 ? 'border-blue-500 bg-blue-500/20 z-20 ring-2 ring-blue-400'
                 : isFilterMatch
                   ? 'border-indigo-500 bg-indigo-500/20 z-15 ring-1 ring-indigo-400'
-                  : 'border-transparent hover:border-blue-300 hover:bg-blue-300/10 z-10'
+                  : flagged
+                    ? 'border-yellow-500 bg-yellow-500/15 z-10 hover:bg-yellow-500/25'
+                    : 'border-transparent hover:border-blue-300 hover:bg-blue-300/10 z-10'
             )}
             style={{
               left: Math.round(x0 * scaleX),
@@ -50,7 +56,22 @@ export function BoundingBoxCanvas({
             onMouseLeave={() => {
               if (activeRegionId === region.id) setActiveRegionId(null);
             }}
-          />
+          >
+            {confidence != null && (
+              <span
+                className={cn(
+                  'absolute left-0 top-0 -translate-y-full rounded-sm px-1 text-[10px] leading-4 whitespace-nowrap',
+                  isActive
+                    ? 'bg-blue-600 text-white'
+                    : flagged
+                      ? 'bg-yellow-600 text-white'
+                      : 'bg-transparent text-transparent'
+                )}
+              >
+                {(confidence <= 1 ? confidence * 100 : confidence).toFixed(0)}%
+              </span>
+            )}
+          </div>
         );
       })}
     </div>

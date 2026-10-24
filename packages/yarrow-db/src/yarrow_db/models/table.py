@@ -53,5 +53,6 @@ class TableCell(Base):
     x1 = Column(Float)
     y1 = Column(Float)
     is_header = Column(Boolean, default=False)
+    confidence = Column(Float)
 
     region_table = relationship("RegionTable")
