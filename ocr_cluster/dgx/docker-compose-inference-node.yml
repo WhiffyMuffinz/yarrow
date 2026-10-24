@@ -32,7 +32,7 @@ services:
     restart: unless-stopped
 
   vlm-server:
-    image: nvcr.io/nvidia/vllm:25.12.post1-py3
+    image: nvcr.io/nvidia/vllm:25.12.post1-py3@sha256:19a3cff5116bae8b6bdc00b868c5da4d68dcb4fb7a478843af045a1bc017b2d3
     command:
       - vllm
       - serve
