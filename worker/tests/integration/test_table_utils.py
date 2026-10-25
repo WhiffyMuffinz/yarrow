@@ -315,7 +315,7 @@ class TestIsConsecutive:
             assert is_consecutive(session, parts[0], parts[2]) is False
 
     def test_rejects_a_part_that_is_not_last_on_its_page(self, graph):
-        """A footer after the table defeats the page-extremity rule."""
+        """A footer (stored as a paragraph) after the table defeats the page-extremity rule."""
         with session_scope() as session:
             first = _parts_in_document_order(session, graph)[0]
             session.add(
@@ -323,7 +323,7 @@ class TestIsConsecutive:
                     id=uuid.uuid4(),
                     page_id=first.region.page_id,
                     reading_order=1,
-                    region_type="footer",
+                    region_type="paragraph",
                     x0=0.0,
                     y0=0.0,
                     x1=1.0,

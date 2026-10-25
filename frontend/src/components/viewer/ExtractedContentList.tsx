@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, FileSearch, Merge } from 'lucide-react';
 import { Spinner } from '@/components/ui/Spinner';
 import { isInterrupted } from '@/lib/documents';
@@ -242,9 +242,11 @@ export function ExtractedContentList() {
     pageCount,
     highlightRegionId,
     highlightQuery,
+    initialPage,
     scrollToPage,
   } = useViewer();
   const onScroll = usePageTracking('extracted');
+  const openedAtPage = useRef(false);
 
   // Which tables can be merged or split
   const [tableEdits, setTableEdits] = useState<MergeCandidates | null>(null);
@@ -260,6 +262,7 @@ export function ExtractedContentList() {
 
   useEffect(() => {
     if (document.status !== 'completed' || !tree) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Intentional reset-before-load: the effect (re)fetches merge candidates on document change; async callbacks apply the result.
       setTableEdits(null);
       return;
     }
@@ -303,6 +306,16 @@ export function ExtractedContentList() {
     }, 50);
     return () => window.clearTimeout(timer);
   }, [tree, highlightRegionId, highlightQuery, scrollToPage]);
+
+  // Opened from a ?page= link
+  useEffect(() => {
+    if (openedAtPage.current || !tree || initialPage <= 1) {
+      return;
+    }
+
+    openedAtPage.current = true;
+    scrollToPage(initialPage, 'extracted');
+  }, [tree, initialPage, scrollToPage]);
 
   // Determine if the document is currently in progress (queued or processing)
   const inProgress =

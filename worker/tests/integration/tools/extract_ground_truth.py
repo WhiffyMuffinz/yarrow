@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 import filetype
 
 from app.core.config import settings
-from app.pipeline.document_parser import DocumentParser
+from app.pipeline.document_parser import REGION_TYPE_MAP, DocumentParser
 from app.pipeline.reading_order import order_blocks
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -106,7 +106,7 @@ def page_graph(page_number, pruned_page):
         regions.append(
             {
                 "reading_order": order,
-                "region_type": label,
+                "region_type": REGION_TYPE_MAP.get(str(label).lower(), "paragraph") if label else "paragraph",
                 "block_label": label,
                 "is_table": is_table,
                 # A table's content becomes cells, and an image's becomes

@@ -12,77 +12,77 @@
         "regions": [
           {
             "reading_order": 0,
-            "region_type": "doc_title",
+            "region_type": "paragraph",
             "block_label": "doc_title",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 1,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 2,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 3,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 4,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 5,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 6,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 7,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 8,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 9,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true
           },
           {
             "reading_order": 10,
-            "region_type": "text",
+            "region_type": "paragraph",
             "block_label": "text",
             "is_table": false,
             "has_text": true

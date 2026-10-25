@@ -21,6 +21,11 @@ filetype = "*"
 # app/pipeline/file_loaders/gif_loader.py -- splits animated GIFs into frames.
 pillow = "*"
 
+# app/pipeline/quality_checker.py -- blur, skew, truncation, and brightness
+# checks on each page image.
+opencv-python-headless = "*"
+numpy = "*"
+
 # app/pipeline/file_loaders/pdf_loader.py -- imported as `fitz`. Rasterizes PDF
 # pages to PNG at 150 DPI, which pypdf cannot do at all and pdfplumber only does
 # by shelling out to poppler.

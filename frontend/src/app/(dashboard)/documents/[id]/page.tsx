@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState, use } from 'react';
 import { Alert } from '@/components/ui/Alert';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
@@ -43,6 +43,8 @@ function DocumentViewer({ documentId }: { documentId: string }) {
   const searchParams = useSearchParams();
   const regionId = searchParams.get('region');
   const query = searchParams.get('q') ?? '';
+
+  const requestedPage = Number(searchParams.get('page'));
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [attempt, setAttempt] = useState(0);
 
@@ -134,11 +136,21 @@ function DocumentViewer({ documentId }: { documentId: string }) {
     );
   }
 
+  // A page outside the document (a stale link) opens at the first page
+  const pageCount = load.tree.document.page_count ?? load.tree.stats.page_count;
+  const initialPage =
+    Number.isInteger(requestedPage) &&
+    requestedPage >= 1 &&
+    requestedPage <= pageCount
+      ? requestedPage
+      : 1;
+
   return (
     <ViewerProvider
       document={load.tree.document}
       tree={load.tree}
       initialMode={defaultMode()}
+      initialPage={initialPage}
       refresh={refresh}
       highlightRegionId={regionId}
       highlightQuery={query}
@@ -179,8 +191,11 @@ function DocumentViewerLayout({ refresh }: { refresh: () => void }) {
 export default function DocumentViewerPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
+  // Next 15+ passes `params` as a Promise; this page is a client component,
+  // so unwrap it with use() before rendering.
+  const { id } = use(params);
   return (
     <Suspense
       fallback={
@@ -189,7 +204,7 @@ export default function DocumentViewerPage({
         </div>
       }
     >
-      <DocumentViewer documentId={params.id} />
+      <DocumentViewer documentId={id} />
     </Suspense>
   );
 }
