@@ -211,6 +211,7 @@ def tree(
         tables=tables,
         stats=DocumentStats(
             page_count=len(pages),
+            high_confidence_page_count=0,
             region_count=sum(len(item.regions) for item in pages),
             table_count=len(tables),
             stitched_table_count=sum(1 for item in tables if item.is_stitched),
