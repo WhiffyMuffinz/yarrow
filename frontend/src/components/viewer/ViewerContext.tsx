@@ -55,6 +55,10 @@ type ViewerState = {
 
   showBoundingBoxes: boolean;
   setShowBoundingBoxes: (show: boolean) => void;
+
+  showLowConfidence: boolean;
+  setShowLowConfidence: (show: boolean) => void;
+
   regionFilter: string | null;
   setRegionFilter: (filter: string | null) => void;
   /** Load the document again, e.g. after merging or splitting its tables. */
@@ -96,6 +100,7 @@ export function ViewerProvider({
   const [highlightQuery, setHighlightQuery] = useState(initialHighlightQuery);
   const [activeRegionId, setActiveRegionId] = useState<string | null>(null);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
+  const [showLowConfidence, setShowLowConfidence] = useState(false);
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
 
   const setHighlight = useCallback((regionId: string | null, query: string) => {
@@ -164,6 +169,8 @@ export function ViewerProvider({
       setActiveRegionId,
       showBoundingBoxes,
       setShowBoundingBoxes,
+      showLowConfidence,
+      setShowLowConfidence,
       regionFilter,
       setRegionFilter,
       refresh,
@@ -184,6 +191,7 @@ export function ViewerProvider({
       setHighlight,
       activeRegionId,
       showBoundingBoxes,
+      showLowConfidence,
       regionFilter,
     ]
   );

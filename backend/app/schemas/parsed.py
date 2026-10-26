@@ -26,18 +26,19 @@ class WarningNode(StrictModel):
 class RegionNode(StrictModel):
     """One extracted block, in reading order within its page."""
 
-    id: UUID  # Region.id
-    page_number: int  # Region.page.page_number
-    reading_order: int  # Region.reading_order
+    id: UUID                                            # Region.id
+    page_number: int                                    # Region.page.page_number
+    reading_order: int                                  # Region.reading_order
     region_type: Literal["header", "paragraph", "figure", "table"] | None = None  # Region.region_type
-    bbox: BBox  # x0, y0, x1, y1
-    confidence: float | None = None  # Region.confidence
-    text: str | None = None  # RegionText.text_content. None for tables and figures
-    table_id: UUID | None = None  # Set when the region is part of a table
-    region_table_id: UUID | None = None  # Set when the region corresponds to a region table
-    is_first_table_part: bool = False  # True if this region is the first region of a table
-    image_key: str | None = None  # Key to the image of this region, if available
-    caption: str | None = None  # Caption text for this region, if available
+    bbox: BBox                                          # x0, y0, x1, y1
+    confidence: float | None = None                     # The confidence of the Region
+    text_confidence: float | None = None                # The confidence of RegionText
+    text: str | None = None                             # RegionText.text_content. None for tables and figures
+    table_id: UUID | None = None                        # Set when the region is part of a table
+    region_table_id: UUID | None = None                 #  Set when the region corresponds to a region table
+    is_first_table_part: bool = False                   # True if this region is the first region of a table
+    image_key: str | None = None                        # Key to the image of this region, if available
+    caption: str | None = None                          # Caption text for this region, if available
 
 
 class PageNode(StrictModel):
@@ -52,6 +53,7 @@ class PageNode(StrictModel):
 
 class DocumentStats(StrictModel):
     page_count: int
+    high_confidence_page_count: int
     region_count: int
     table_count: int
     stitched_table_count: int

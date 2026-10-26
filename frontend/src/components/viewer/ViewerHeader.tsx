@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/Badge';
 import { cn } from '@/lib/cn';
+import { DocumentDetails } from './DocumentDetails';
 import { FindInDocument } from './FindInDocument';
 import { RegionFilterDropdown } from './RegionFilter';
 import { ShareModal } from './ShareModal';
@@ -90,7 +91,7 @@ export function ViewerHeader({ actions }: { actions?: ReactNode }) {
         <ArrowLeft aria-hidden="true" className="size-4" />
         <span className="sr-only">Back to documents</span>
       </Link>
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div className="flex min-w-[10rem] flex-1 items-center gap-3">
         <h1
           title={document.filename}
           className="truncate text-base font-semibold text-slate-900"
@@ -99,6 +100,7 @@ export function ViewerHeader({ actions }: { actions?: ReactNode }) {
         </h1>
         <StatusBadge status={document.status} className="shrink-0" />
       </div>
+      <DocumentDetails />
       <FindInDocument />
       <RegionFilterDropdown />
       <PageIndicator />

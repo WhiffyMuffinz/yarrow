@@ -19,7 +19,7 @@ import { toApiError } from '@/lib/errors';
 export function checkName(name: string): string | null {
   if (!name) return 'Name cannot be empty.';
   if (name.length > 255) return 'Name must be 255 characters or fewer.';
-  // eslint-disable-next-line no-control-regex
+
   if (/[\\/\u0000-\u001f\u007f]/.test(name)) {
     return 'Name cannot contain slashes or control characters.';
   }

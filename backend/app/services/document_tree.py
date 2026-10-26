@@ -176,6 +176,7 @@ async def load_document_tree(
                 bbox=_bbox(region),
                 confidence=region.confidence,
                 text=text.text_content if text is not None else None,
+                text_confidence=text.confidence if text is not None else None,
                 table_id=part.table_id if part is not None else None,
                 region_table_id=part.id if part is not None else None,
                 is_first_table_part=part is not None and part.id in first_part_ids,
@@ -197,6 +198,14 @@ async def load_document_tree(
         )
         for row in page_rows
     ]
+    
+    # Calculate the number of high-confidence pages
+    high_confidence_page_count = 0
+    for row in page_rows:
+        regions = regions_by_page.get(row.id, [])
+        scored = [r.confidence for r in regions if r.confidence is not None]
+        if row.status == "completed" and scored and all(c >= 0.5 for c in scored):
+            high_confidence_page_count += 1
 
     # Build table nodes in document reading order.
     table_nodes = [_build_table_node(assembly) for assembly in sorted(assemblies.values(), key=_table_sort_key)]
@@ -210,6 +219,7 @@ async def load_document_tree(
         tables=table_nodes,
         stats=DocumentStats(
             page_count=len(page_nodes),
+            high_confidence_page_count=high_confidence_page_count,
             region_count=len(region_rows),
             table_count=len(table_nodes),
             stitched_table_count=sum(bool(node.is_stitched) for node in table_nodes),
@@ -326,6 +336,7 @@ def _attach_cells(
                 bbox=_bbox(cell),
                 page_number=part_page_number[region_table.id],
                 region_table_id=region_table.id,
+                confidence=cell.confidence,
             )
         )
 
