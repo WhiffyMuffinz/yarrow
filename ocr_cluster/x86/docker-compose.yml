@@ -16,7 +16,7 @@ name: yarrow-ocr-x86
 
 services:
   vlm-server:
-    image: lmsysorg/sglang:v0.5.21-cu130-runtime@sha256:df6ad77ad91b1f83985ebb789de97b83fc8745786abf5c2913d6d0387007e4cb
+    image: lmsysorg/sglang:v0.5.22-cu130-runtime@sha256:c3d99f078c329a5b2d0c0c02c4237cf8b0dcd1dc6f875a943ae163c1720854cb
     command:
       - python3
       - -m
