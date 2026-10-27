@@ -86,3 +86,48 @@ class TestAdminAccounts:
         row = next(item for item in response.json() if item["email"] == admin["email"])
         assert row["document_count"] == 0
         assert row["is_admin"] is True
+
+    async def test_admin_can_disable_and_enable_an_account(
+        self, client, auth_headers, register, verify, login, db_session
+    ):
+        # Promote the current user to admin
+        await _promote(client, auth_headers, db_session)
+
+        other, _ = await _other_headers(register, verify, login)
+
+        # Get the account info of the other account
+        account = next(
+            row
+            for row in (await client.get(ACCOUNTS, headers=auth_headers)).json()
+            if row["email"] == other["email"]
+        )
+
+        # Verify that disabling the account works correctly
+        response = await client.patch(
+            f"{ACCOUNTS}/{account['id']}/status",
+            headers=auth_headers,
+            json={"is_active": False},
+        )
+        assert response.status_code == 200
+        assert response.json()["is_active"] is False
+
+        # Verify that enabling the account works correctly
+        response = await client.patch(
+            f"{ACCOUNTS}/{account['id']}/status",
+            headers=auth_headers,
+            json={"is_active": True},
+        )
+        assert response.status_code == 200
+        assert response.json()["is_active"] is True
+
+    async def test_admin_cannot_disable_self(self, client, auth_headers, db_session):
+        # Promote the current user to admin
+        admin = await _promote(client, auth_headers, db_session)
+
+        # Verify that disabling the admin's own account is not allowed
+        response = await client.patch(
+            f"{ACCOUNTS}/{admin['id']}/status",
+            headers=auth_headers,
+            json={"is_active": False},
+        )
+        assert response.status_code == 400

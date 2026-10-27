@@ -7,6 +7,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import {
   getAdminStats,
   listAccounts,
+  setAccountActive,
   type AdminAccount,
   type AdminStats,
   type JobStatusCounts,
@@ -15,6 +16,8 @@ import { parseApiDate } from '@/lib/documents';
 import { toApiError } from '@/lib/errors';
 import { formatBytes } from '@/lib/uploads';
 import { cn } from '@/lib/cn';
+import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu';
+import { Ban, Check, X } from 'lucide-react';
 
 const CELL =
   'border-y border-slate-200 bg-white px-3 py-3 sm:px-4 align-middle first:rounded-l-xl first:border-l last:rounded-r-xl last:border-r';
@@ -79,7 +82,76 @@ function StatsSection({ stats }: { stats: AdminStats }) {
   );
 }
 
-function AccountTable({ accounts }: { accounts: AdminAccount[] }) {
+function AccountTableRow({
+  account,
+  onStatusChange,
+  pending,
+}: {
+  account: AdminAccount;
+  onStatusChange: (accountId: string, isActive: boolean) => void;
+  pending: boolean;
+}) {
+  const actions: ActionMenuItem[] = [
+    {
+      label: account.is_active ? 'Disable' : 'Enable',
+      icon: account.is_active ? Ban : Check,
+      destructive: account.is_active,
+      keepFocus: true,
+      onSelect: () => onStatusChange(account.id, !account.is_active),
+    },
+  ];
+
+  return (
+    <tr>
+      <td className={CELL}>
+        <span className="font-medium text-slate-900">
+          {account.name || 'No name'}
+        </span>
+        {account.is_admin && (
+          <span className="ml-2 inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
+            Admin
+          </span>
+        )}
+      </td>
+      <td className={cn(CELL, 'text-slate-700')}>{account.email}</td>
+      <td className={cn(CELL, 'text-slate-600')}>
+        {joinedOn(account.created_at)}
+      </td>
+      <td className={cn(CELL, 'text-right tabular-nums text-slate-700')}>
+        {account.document_count}
+      </td>
+      <td className={cn(CELL, 'text-right')}>
+        <span className="flex justify-end">
+          {account.is_active ? (
+            <Check aria-hidden="true" />
+          ) : (
+            <X aria-hidden="true" />
+          )}
+        </span>
+      </td>
+      <td className={cn(CELL, 'text-right')}>
+        {pending ? (
+          <Spinner label="Updating account" />
+        ) : (
+          <ActionMenu
+            label={`More actions for ${account.name || account.email}`}
+            items={actions}
+          />
+        )}
+      </td>
+    </tr>
+  );
+}
+
+function AccountTable({
+  accounts,
+  onStatusChange,
+  pendingAccountId,
+}: {
+  accounts: AdminAccount[];
+  onStatusChange: (accountId: string, isActive: boolean) => void;
+  pendingAccountId: string | null;
+}) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[40rem] border-separate border-spacing-y-2 text-sm">
@@ -89,31 +161,18 @@ function AccountTable({ accounts }: { accounts: AdminAccount[] }) {
             <th className={HEAD}>Email</th>
             <th className={HEAD}>Joined</th>
             <th className={cn(HEAD, 'text-right')}>Documents</th>
+            <th className={cn(HEAD, 'text-right')}>Enabled</th>
+            <th className={cn(HEAD, 'text-right')}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {accounts.map((account) => (
-            <tr key={account.id}>
-              <td className={CELL}>
-                <span className="font-medium text-slate-900">
-                  {account.name || 'No name'}
-                </span>
-                {account.is_admin && (
-                  <span className="ml-2 inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                    Admin
-                  </span>
-                )}
-              </td>
-              <td className={cn(CELL, 'text-slate-700')}>{account.email}</td>
-              <td className={cn(CELL, 'text-slate-600')}>
-                {joinedOn(account.created_at)}
-              </td>
-              <td
-                className={cn(CELL, 'text-right tabular-nums text-slate-700')}
-              >
-                {account.document_count}
-              </td>
-            </tr>
+            <AccountTableRow
+              account={account}
+              key={account.id}
+              onStatusChange={onStatusChange}
+              pending={pendingAccountId === account.id}
+            />
           ))}
         </tbody>
       </table>
@@ -121,7 +180,15 @@ function AccountTable({ accounts }: { accounts: AdminAccount[] }) {
   );
 }
 
-function AccountsSection({ accounts }: { accounts: AdminAccount[] }) {
+function AccountsSection({
+  accounts,
+  onStatusChange,
+  pendingAccountId,
+}: {
+  accounts: AdminAccount[];
+  onStatusChange: (accountId: string, isActive: boolean) => void;
+  pendingAccountId: string | null;
+}) {
   return (
     <section className="space-y-3">
       <h2 className="text-lg font-semibold text-slate-900">Accounts</h2>
@@ -130,7 +197,11 @@ function AccountsSection({ accounts }: { accounts: AdminAccount[] }) {
           No accounts yet.
         </p>
       ) : (
-        <AccountTable accounts={accounts} />
+        <AccountTable
+          accounts={accounts}
+          onStatusChange={onStatusChange}
+          pendingAccountId={pendingAccountId}
+        />
       )}
     </section>
   );
@@ -140,6 +211,28 @@ function AdminBody() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [accounts, setAccounts] = useState<AdminAccount[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
+
+  async function changeAccountStatus(accountId: string, isActive: boolean) {
+    setPendingAccountId(accountId);
+    setActionError(null);
+    try {
+      await setAccountActive(accountId, isActive);
+      setAccounts(
+        (current) =>
+          current?.map((account) =>
+            account.id === accountId
+              ? { ...account, is_active: isActive }
+              : account
+          ) ?? null
+      );
+    } catch (err) {
+      setActionError(toApiError(err).message);
+    } finally {
+      setPendingAccountId(null);
+    }
+  }
 
   useEffect(() => {
     let current = true;
@@ -175,7 +268,14 @@ function AdminBody() {
   return (
     <>
       <StatsSection stats={stats} />
-      <AccountsSection accounts={accounts} />
+      <div className="space-y-3">
+        {actionError && <Alert>{actionError}</Alert>}
+        <AccountsSection
+          accounts={accounts}
+          onStatusChange={changeAccountStatus}
+          pendingAccountId={pendingAccountId}
+        />
+      </div>
     </>
   );
 }
