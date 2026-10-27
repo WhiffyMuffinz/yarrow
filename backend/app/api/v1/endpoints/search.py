@@ -124,6 +124,7 @@ async def search_documents(
                     text=snippet_text,
                     match_start=match_start,
                     match_end=match_end,
+                    edited=region_text.original_text is not None,
                 )
             )
 
