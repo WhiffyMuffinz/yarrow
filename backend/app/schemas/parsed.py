@@ -34,6 +34,8 @@ class RegionNode(StrictModel):
     confidence: float | None = None                     # The confidence of the Region
     text_confidence: float | None = None                # The confidence of RegionText
     text: str | None = None                             # RegionText.text_content. None for tables and figures
+    is_edited: bool = False                             # True once text was manually corrected
+    original_text: str | None = None                    # The raw OCR output, sent only for edited regions
     table_id: UUID | None = None                        # Set when the region is part of a table
     region_table_id: UUID | None = None                 #  Set when the region corresponds to a region table
     is_first_table_part: bool = False                   # True if this region is the first region of a table
@@ -66,5 +68,6 @@ class DocumentTree(StrictModel):
     document: DocumentOut
     pages_included: list[int] = Field(default_factory=list)
     pages: list[PageNode] = Field(default_factory=list)
+    can_edit: bool = False                              # Whether the caller may correct text or edit tables
     tables: list[TableNode] = Field(default_factory=list)  # Always document-scoped, even under a page filter
     stats: DocumentStats
