@@ -21,8 +21,12 @@ export type Pane = 'original' | 'extracted';
 type ViewerState = {
   document: DocumentSummary;
 
-  // Null until the parsed content has loaded.
+  // Null until the parsed content has loaded. Corrections made in the
+  // session are applied here before a full reload
   tree: DocumentTree | null;
+
+  // Whether the viewer may correct text or edit tables (owner or reviewer).
+  canEdit: boolean;
 
   // Page count in the document, once known from either the file or the tree.
   pageCount: number | null;
@@ -61,6 +65,15 @@ type ViewerState = {
 
   regionFilter: string | null;
   setRegionFilter: (filter: string | null) => void;
+
+  /**
+   * Record a saved correction in the loaded tree: the active text becomes
+   * `text` and the region is flagged with its preserved OCR output, until a
+   * full refresh replaces the tree.
+   */
+  applyRegionCorrection: (regionId: string, text: string) => void;
+  /** Record an undone correction in the loaded tree. */
+  undoRegionCorrection: (regionId: string) => void;
   /** Load the document again, e.g. after merging or splitting its tables. */
   refresh: () => void;
 };
@@ -102,6 +115,64 @@ export function ViewerProvider({
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
   const [showLowConfidence, setShowLowConfidence] = useState(false);
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
+
+  // Corrections save through the API and then land here, so find-in-document
+  // and the rendered text reflect them without waiting for a full reload.
+  // The prop wins again whenever the page passes a new tree in (reset
+  // during render, the React-endorsed way to adjust state to props).
+  const [treeWithCorrections, setTreeWithCorrections] = useState(tree);
+  const [lastLoadedTree, setLastLoadedTree] = useState(tree);
+  if (tree !== lastLoadedTree) {
+    setLastLoadedTree(tree);
+    setTreeWithCorrections(tree);
+  }
+
+  const applyRegionCorrection = useCallback(
+    (regionId: string, text: string) => {
+      setTreeWithCorrections((current) => {
+        if (!current) return current;
+        const pages = current.pages.map((page) => ({
+          ...page,
+          regions: page.regions.map((region) =>
+            region.id === regionId
+              ? {
+                  ...region,
+                  text,
+                  is_edited: true,
+                  // The first correction freezes the OCR output as the
+                  // diff's baseline; later corrections keep it.
+                  original_text: region.is_edited
+                    ? (region.original_text ?? null)
+                    : (region.text ?? ''),
+                }
+              : region
+          ),
+        }));
+        return { ...current, pages };
+      });
+    },
+    []
+  );
+
+  const undoRegionCorrection = useCallback((regionId: string) => {
+    setTreeWithCorrections((current) => {
+      if (!current) return current;
+      const pages = current.pages.map((page) => ({
+        ...page,
+        regions: page.regions.map((region) =>
+          region.id === regionId
+            ? {
+                ...region,
+                text: region.original_text ?? region.text,
+                is_edited: false,
+                original_text: null,
+              }
+            : region
+        ),
+      }));
+      return { ...current, pages };
+    });
+  }, []);
 
   const setHighlight = useCallback((regionId: string | null, query: string) => {
     setHighlightRegionId(regionId);
@@ -152,8 +223,9 @@ export function ViewerProvider({
   const value = useMemo<ViewerState>(
     () => ({
       document,
-      tree,
-      pageCount: pageCount ?? tree?.stats.page_count ?? null,
+      tree: treeWithCorrections,
+      canEdit: treeWithCorrections?.can_edit ?? false,
+      pageCount: pageCount ?? treeWithCorrections?.stats.page_count ?? null,
       setPageCount,
       mode,
       setMode,
@@ -173,11 +245,13 @@ export function ViewerProvider({
       setShowLowConfidence,
       regionFilter,
       setRegionFilter,
+      applyRegionCorrection,
+      undoRegionCorrection,
       refresh,
     }),
     [
       document,
-      tree,
+      treeWithCorrections,
       pageCount,
       mode,
       currentPage,
@@ -193,6 +267,8 @@ export function ViewerProvider({
       showBoundingBoxes,
       showLowConfidence,
       regionFilter,
+      applyRegionCorrection,
+      undoRegionCorrection,
     ]
   );
 
