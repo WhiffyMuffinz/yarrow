@@ -21,8 +21,15 @@ export type RegionNode = {
   // The layout model's confidence in this block's type and box
   confidence: number | null;
 
-  // Null for tables and figures
+  // The active text; starts as the raw OCR output. Null for tables
+  // and figures.
   text: string | null;
+
+  // True once this region's text was manually corrected and the untouched
+  // OCR output was preserved in original_text
+  is_edited?: boolean;
+  original_text?: string | null;
+
   text_confidence: number | null;
   table_id: string | null;
   region_table_id: string | null;
@@ -101,6 +108,8 @@ export type DocumentTree = {
   document: DocumentSummary;
   pages_included: number[];
   pages: PageNode[];
+  // Whether the viewer may correct text or edit tables (owner/reviewer)
+  can_edit?: boolean;
   // Always document-scoped
   tables: TableNode[];
   stats: {
