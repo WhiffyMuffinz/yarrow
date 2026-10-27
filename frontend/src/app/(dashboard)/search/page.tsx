@@ -154,6 +154,14 @@ export default function SearchPage() {
                       >
                         <p className="text-xs font-medium text-slate-500">
                           Page {snippet.page_number}
+                          {snippet.edited && (
+                            <span
+                              title="This region was manually corrected"
+                              className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 align-middle text-[10px] font-semibold uppercase tracking-wide text-amber-800"
+                            >
+                              corrected
+                            </span>
+                          )}
                         </p>
                         <p className="mt-1 text-sm text-slate-800">
                           <HighlightedText

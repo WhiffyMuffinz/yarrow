@@ -6,6 +6,7 @@ export type SearchSnippet = {
   text: string;
   match_start: number;
   match_end: number;
+  edited?: boolean;
 };
 
 export type SearchHit = {
