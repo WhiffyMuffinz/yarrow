@@ -1,5 +1,4 @@
 import base64
-import io
 import json
 import os
 import warnings
@@ -64,7 +63,7 @@ class TestRealDocumentOrientation:
         """Re-detecting a corrected page reports about 0 degrees."""
         corrector = OrientationCorrector()
         for page_number, page_b64 in rotation_fixture["pages"]:
-            corrected, reported, _ = corrector.correct_page(page_b64)
+            corrected, _reported, _ = corrector.correct_page(page_b64)
             if corrected == page_b64:
                 # An unchanged page is already upright; nothing to re-check.
                 continue

@@ -130,7 +130,9 @@ export function ViewerProvider({
   const [showLowConfidence, setShowLowConfidence] = useState(false);
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
   const [originalPages, setOriginalPages] = useState<Set<number>>(new Set());
-  const [pageRotations, setPageRotations] = useState<Record<number, number>>({});
+  const [pageRotations, setPageRotations] = useState<Record<number, number>>(
+    {}
+  );
 
   const toggleOriginalPage = useCallback((page: number) => {
     setOriginalPages((current) => {
