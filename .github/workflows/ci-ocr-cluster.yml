@@ -31,16 +31,23 @@ jobs:
       OCR_CLUSTER_STACK: x86
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # A docker-container builder, which supports local BuildKit cache
+      # export (the default docker driver may not). The builder name is
+      # passed to the test via OCR_BUILD_BUILDER.
+      - name: Set up Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.11"
       - name: Install pytest
         run: pip install pytest
-      # No actions/cache here: stacking both stacks'
-      # cache directories in one repository risks blowing GitHub's 10 GB
-      # per-repo cache budget, which would evict the dgx cache
+      # No actions/cache here: stacking both stacks' cache directories in one
+      # repository risks blowing GitHub's 10 GB per-repo cache budget.
       - name: Build and run the x86 stack (non-VLM)
+        env:
+          OCR_BUILD_BUILDER: ${{ steps.buildx.outputs.name }}
         run: pytest ocr_cluster/tests -v -m ocr_cluster
 
   ocr-cluster-aarch64:
@@ -54,8 +61,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Set up Buildx
+        id: buildx
         uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
-      # Carries the BuildKit cache between runs.
+      # Carries the BuildKit cache between runs so the from-source PaddlePaddle
+      # compile (hours on 4 vCPUs) happens once, not per run. Keyed on the
+      # Dockerfiles so a Dockerfile change invalidates the cache; restore-keys
+      # still restores the old entry, and buildx ignores records it cannot
+      # match. actions/cache saves only after a successful build, and GitHub
+      # caps the cache at 10 GB per repository (LRU eviction) -- if the dgx
+      # compile cache outgrows that, cache saves will stop changing anything
+      # and this job goes back to a full rebuild per run.
       - name: Restore BuildKit cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -70,4 +85,6 @@ jobs:
       - name: Install pytest
         run: pip install pytest
       - name: Build and run the aarch64 stack (non-VLM)
+        env:
+          OCR_BUILD_BUILDER: ${{ steps.buildx.outputs.name }}
         run: pytest ocr_cluster/tests -v -m ocr_cluster

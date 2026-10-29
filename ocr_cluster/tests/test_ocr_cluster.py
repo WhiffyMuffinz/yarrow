@@ -77,6 +77,7 @@ pytestmark = pytest.mark.ocr_cluster
 # --------------------------------------------------------------------------- #
 def _run(cmd, **kwargs):
     """Run a command, raising with captured output on failure."""
+    kwargs.setdefault("text", True)
     print(f"$ {' '.join(cmd)}", flush=True)
     return subprocess.run(cmd, check=True, **kwargs)
 
@@ -180,9 +181,12 @@ def _build(tag: str, dockerfile: Path, context: Path, extra_contexts: dict, stac
         return
     except subprocess.CalledProcessError as exc:
         out = (exc.stderr or "") + (exc.stdout or "")
+        # Surface the real docker error before anything else, so a CI failure
+        # shows the build output instead of only this function's traceback.
+        print(_tail(out, 40), flush=True)
         if "cache export is not supported" not in out:
             raise RuntimeError(
-                f"Build of {tag} failed (exit {exc.returncode}):\n{_tail(exc.stderr or exc.stdout, 60)}"
+                f"Build of {tag} failed (exit {exc.returncode}):\n{_tail(out, 60)}"
             ) from exc
 
     # The active builder cannot export a local cache (plain docker driver on
