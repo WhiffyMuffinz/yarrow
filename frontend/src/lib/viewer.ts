@@ -53,6 +53,9 @@ export type PageNode = {
   height: number | null;
   status: string | null;
   error_message: string | null;
+  // Set only when the page was rotated before OCR. The viewer shows the
+  // corrected upright image for those pages; null for everything else.
+  image_key: string | null;
   regions: RegionNode[];
   warnings: WarningNode[];
 };
@@ -155,6 +158,22 @@ export async function getRegionImage(
 ): Promise<Blob> {
   const res = await api.get<Blob>(
     `/api/v1/documents/${documentId}/regions/${regionId}/image`,
+    { responseType: 'blob' }
+  );
+  return res.data;
+}
+
+/**
+ * The corrected upright image of a page that was rotated before OCR, for
+ * pages with an image_key. Fetched through the API client for the same
+ * reason as the original file.
+ */
+export async function getPageImage(
+  documentId: string,
+  pageNumber: number
+): Promise<Blob> {
+  const res = await api.get<Blob>(
+    `/api/v1/documents/${documentId}/pages/${pageNumber}/image`,
     { responseType: 'blob' }
   );
   return res.data;

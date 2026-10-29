@@ -72,6 +72,7 @@ function tree(region: RegionNode, canEdit = true): DocumentTree {
         height: null,
         status: 'completed',
         error_message: null,
+        image_key: null,
         regions: [region],
         warnings: [],
       },
