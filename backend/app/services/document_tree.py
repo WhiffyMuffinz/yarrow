@@ -177,6 +177,8 @@ async def load_document_tree(
                 confidence=region.confidence,
                 text=text.text_content if text is not None else None,
                 text_confidence=text.confidence if text is not None else None,
+                is_edited=text is not None and text.original_text is not None,
+                original_text=text.original_text if text is not None and text.original_text is not None else None,
                 table_id=part.table_id if part is not None else None,
                 region_table_id=part.id if part is not None else None,
                 is_first_table_part=part is not None and part.id in first_part_ids,
@@ -216,6 +218,7 @@ async def load_document_tree(
         document=(await documents_out(db, [document]))[0],
         pages_included=[row.page_number for row in page_rows],
         pages=page_nodes,
+        can_edit=access.can_edit,
         tables=table_nodes,
         stats=DocumentStats(
             page_count=len(page_nodes),
