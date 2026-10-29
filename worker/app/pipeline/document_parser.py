@@ -30,8 +30,8 @@ from app.pipeline.file_loaders.jpeg_loader import JPEGLoader
 from app.pipeline.file_loaders.jpg_loader import JPGLoader
 from app.pipeline.file_loaders.pdf_loader import PDFLoader
 from app.pipeline.file_loaders.png_loader import PNGLoader
-from app.pipeline.quality_checker import QualityChecker
 from app.pipeline.orientation import OrientationCorrector
+from app.pipeline.quality_checker import QualityChecker
 from app.pipeline.reading_order import order_blocks
 
 logger = logging.getLogger(__name__)

@@ -67,7 +67,10 @@ export function PageFrame({
   // size; 90 and 270 scale to the smaller axis.
   const rotatedScale =
     size.width > 0 && (rotation === 90 || rotation === 270)
-      ? Math.min(size.width / (size.height || 1), (size.height || 1) / (size.width || 1))
+      ? Math.min(
+          size.width / (size.height || 1),
+          (size.height || 1) / (size.width || 1)
+        )
       : 1;
   const contentTransform = rotation
     ? `rotate(${rotation}deg) scale(${rotatedScale})`
@@ -119,7 +122,9 @@ export function PageFrame({
         >
           <RotateCw className="size-4" />
           {rotation > 0 && (
-            <span className="text-xs font-medium tabular-nums">{rotation}°</span>
+            <span className="text-xs font-medium tabular-nums">
+              {rotation}°
+            </span>
           )}
         </button>
       </div>

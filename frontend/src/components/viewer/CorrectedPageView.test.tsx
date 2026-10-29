@@ -1,5 +1,11 @@
 import { afterEach, expect, test, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import type { DocumentSummary } from '@/lib/documents';
 import { getPageImage } from '@/lib/viewer';
 import { CorrectedPageView } from './PageView';
@@ -74,7 +80,9 @@ test('shows the corrected upright image from the page-image endpoint', async () 
     revokeObjectURL: vi.fn(),
   });
   viewer.document = documentSummary();
-  vi.mocked(getPageImage).mockResolvedValueOnce(new Blob(['png'], { type: 'image/png' }));
+  vi.mocked(getPageImage).mockResolvedValueOnce(
+    new Blob(['png'], { type: 'image/png' })
+  );
 
   render(
     <CorrectedPageView
@@ -123,7 +131,9 @@ test('the rotate button turns the page clockwise by 90 degrees at a time', async
     revokeObjectURL: vi.fn(),
   });
   viewer.document = documentSummary();
-  vi.mocked(getPageImage).mockResolvedValueOnce(new Blob(['png'], { type: 'image/png' }));
+  vi.mocked(getPageImage).mockResolvedValueOnce(
+    new Blob(['png'], { type: 'image/png' })
+  );
 
   render(
     <CorrectedPageView

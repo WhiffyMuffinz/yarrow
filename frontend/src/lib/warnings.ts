@@ -9,7 +9,14 @@ export type WarningEntry = {
 };
 
 export type WarningKind =
-  'blur' | 'skew' | 'truncation' | 'dark' | 'bright' | 'rotated' | 'unreadable' | 'other';
+  | 'blur'
+  | 'skew'
+  | 'truncation'
+  | 'dark'
+  | 'bright'
+  | 'rotated'
+  | 'unreadable'
+  | 'other';
 
 export const FILTERABLE_KINDS: WarningKind[] = [
   'blur',
