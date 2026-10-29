@@ -49,6 +49,8 @@ class PageNode(StrictModel):
     height: float | None = None
     status: str | None = None
     error_message: str | None = None
+    # Storage key of the upright page image
+    image_key: str | None = None
     regions: list[RegionNode] = Field(default_factory=list)
     warnings: list[WarningNode] = Field(default_factory=list)
 

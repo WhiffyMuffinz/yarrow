@@ -651,3 +651,45 @@ async def get_region_image(
         # Region ids are new on every reprocess, so a crop never changes
         headers={"Cache-Control": "private, max-age=86400, immutable"},
     )
+
+
+@router.get("/{document_id}/pages/{page_number}/image")
+async def get_page_image(
+    page_number: int,
+    access: DocumentAccess = Depends(require_read_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Streams the upright page image for a page that was rotated before OCR.
+
+    Served through the backend for the same reason as the original file.
+    Returns 404 when the page was not corrected (no stored image).
+    """
+    image_key = await db.scalar(
+        select(Page.page_image_key).where(
+            Page.document_id == access.document.id,
+            Page.page_number == page_number,
+            Page.page_image_key.is_not(None),
+        )
+    )
+    if image_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="This page has no corrected image",
+        )
+
+    try:
+        handle = await run_in_threadpool(get_storage().download_file, image_key)
+    except ObjectNotFoundError:
+        logger.error(f"Object missing for page {page_number}: {image_key}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="The page image is no longer in storage",
+        ) from None
+
+    return StreamingResponse(
+        _iter_object(handle),
+        media_type="image/png",
+        # The key is stable per page number; a reprocess rewrites the same
+        # key, so it is cached per session but not immutable.
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
