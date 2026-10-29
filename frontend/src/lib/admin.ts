@@ -7,6 +7,7 @@ export type AdminAccount = {
   created_at: string | null;
   is_admin: boolean;
   document_count: number;
+  is_active: boolean;
 };
 
 export type JobStatusCounts = {
@@ -27,6 +28,15 @@ export type AdminStats = {
 export async function listAccounts(): Promise<AdminAccount[]> {
   const res = await api.get<AdminAccount[]>('/api/v1/admin/accounts');
   return res.data;
+}
+
+export async function setAccountActive(
+  accountId: string,
+  isActive: boolean
+): Promise<void> {
+  await api.patch(`/api/v1/admin/accounts/${accountId}/status`, {
+    is_active: isActive,
+  });
 }
 
 export async function getAdminStats(): Promise<AdminStats> {
