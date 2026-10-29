@@ -78,6 +78,18 @@ jobs:
           key: ocr-buildkit-aarch64-v1-${{ hashFiles('ocr_cluster/dgx/paddlex.Dockerfile', 'ocr_cluster/shared/hybrid-gateway.Dockerfile') }}
           restore-keys: |
             ocr-buildkit-aarch64-v1-
+          save-always: true
+      # The 4-core Paddle compile exceeds the runner's 16 GB RAM at times; a
+      # killed build loses all progress, so buy memory headroom with swap.
+      - name: Add swap for the Paddle compile
+        run: |
+          sudo fallocate -l 8G /mnt/swapfile
+          sudo chmod 600 /mnt/swapfile
+          sudo mkswap /mnt/swapfile
+          sudo swapon /mnt/swapfile
+          free -h
+      - name: Runner resources before the build
+        run: df -h / /mnt
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:

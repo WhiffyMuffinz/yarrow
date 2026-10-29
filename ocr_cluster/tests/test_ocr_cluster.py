@@ -145,6 +145,28 @@ def build_cache_dir(stack: str) -> Path:
     return Path(base)
 
 
+def run_streamed(cmd) -> tuple:
+    """Run cmd, printing its combined output live; return (returncode, tail).
+
+    The aarch64 Paddle build runs for a long time (and CI has killed jobs
+    mid-build); streaming keeps the progress — and the last lines before a
+    kill — visible in the CI log.
+    """
+    from collections import deque
+
+    proc = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+    )
+    assert proc.stdout is not None
+    tail = deque(maxlen=60)
+    print(f"$ {' '.join(cmd)}", flush=True)
+    for line in proc.stdout:
+        print(line, end="", flush=True)
+        tail.append(line.rstrip())
+    proc.wait()
+    return proc.returncode, "\n".join(tail)
+
+
 def _build(tag: str, dockerfile: Path, context: Path, extra_contexts: dict, stack: str):
     """docker build, reading and writing a per-stack BuildKit local cache.
 
@@ -176,18 +198,12 @@ def _build(tag: str, dockerfile: Path, context: Path, extra_contexts: dict, stac
     for name, path in extra_contexts.items():
         cmd += ["--build-context", f"{name}={path}"]
     cmd += [str(context)]
-    try:
-        _run(cmd, capture_output=True)
+    code, out = run_streamed(cmd)
+    if code == 0:
         return
-    except subprocess.CalledProcessError as exc:
-        out = (exc.stderr or "") + (exc.stdout or "")
-        # Surface the real docker error before anything else, so a CI failure
-        # shows the build output instead of only this function's traceback.
-        print(_tail(out, 40), flush=True)
-        if "cache export is not supported" not in out:
-            raise RuntimeError(
-                f"Build of {tag} failed (exit {exc.returncode}):\n{_tail(out, 60)}"
-            ) from exc
+    print(_tail(out, 40), flush=True)
+    if "cache export is not supported" not in out:
+        raise RuntimeError(f"Build of {tag} failed (exit {code}):\n{_tail(out, 60)}")
 
     # The active builder cannot export a local cache (plain docker driver on
     # older Docker): rebuild without the cache flags rather than fail.
@@ -200,7 +216,9 @@ def _build(tag: str, dockerfile: Path, context: Path, extra_contexts: dict, stac
             skip = True
         else:
             plain.append(item)
-    _run(plain, capture_output=True)
+    code, out = run_streamed(plain)
+    if code != 0:
+        raise RuntimeError(f"Build of {tag} failed (exit {code}):\n{_tail(out, 60)}")
 
 
 def build_images(stack: str, config: dict):
