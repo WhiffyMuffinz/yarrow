@@ -1,0 +1,73 @@
+name: CI (OCR cluster)
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "ocr_cluster/**"
+      - ".github/workflows/ci-ocr-cluster.yml"
+
+# Builds each OCR cluster stack (x86 and aarch64) and runs its non-VLM
+# services, then asserts each comes up healthy on its own health endpoint.
+# The sglang/vllm vlm-server is excluded
+#
+# x86:     runs on a GitHub-hosted ubuntu runner. The x86 paddlex image ships
+#          a libcuda stub, so it runs on CPU.
+# aarch64: runs on a GitHub-hosted ubuntu-24.04-arm (linux/arm64) runner. No
+#          GPU is attached, so every service runs on CPU (the test falls back
+#          automatically). The aarch paddlex image builds PaddlePaddle from
+#          source for sm_121, so the build step is long; the BuildKit cache is
+#          carried between runs via actions/cache, so only changed layers
+#          rebuild on a second run.
+jobs:
+  ocr-cluster-x86:
+    name: OCR cluster (x86)
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      OCR_CLUSTER_TEST: "1"
+      OCR_CLUSTER_STACK: x86
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+      - name: Install pytest
+        run: pip install pytest
+      # No actions/cache here: stacking both stacks'
+      # cache directories in one repository risks blowing GitHub's 10 GB
+      # per-repo cache budget, which would evict the dgx cache
+      - name: Build and run the x86 stack (non-VLM)
+        run: pytest ocr_cluster/tests -v -m ocr_cluster
+
+  ocr-cluster-aarch64:
+    name: OCR cluster (aarch64)
+    runs-on: ubuntu-24.04-arm
+    # GitHub caps hosted-runner jobs at 360 minutes.
+    timeout-minutes: 360
+    env:
+      OCR_CLUSTER_TEST: "1"
+      OCR_CLUSTER_STACK: dgx
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # Carries the BuildKit cache between runs.
+      - name: Restore BuildKit cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/yarrow-ocr-build/dgx
+          key: ocr-buildkit-aarch64-v1-${{ hashFiles('ocr_cluster/dgx/paddlex.Dockerfile', 'ocr_cluster/shared/hybrid-gateway.Dockerfile') }}
+          restore-keys: |
+            ocr-buildkit-aarch64-v1-
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.11"
+      - name: Install pytest
+        run: pip install pytest
+      - name: Build and run the aarch64 stack (non-VLM)
+        run: pytest ocr_cluster/tests -v -m ocr_cluster
