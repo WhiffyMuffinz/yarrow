@@ -1,11 +1,19 @@
-from fastapi import APIRouter, Depends
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from yarrow_db.models import Document, Job, User
 
 from app.core.database import get_db
 from app.core.security import get_current_active_admin
-from app.schemas.admin import AdminAccount, AdminStats, JobStatusCounts
+from app.schemas.admin import (
+    AdminAccount,
+    AdminAccountStatus,
+    AdminAccountStatusUpdate,
+    AdminStats,
+    JobStatusCounts,
+)
 
 router = APIRouter()
 
@@ -25,6 +33,7 @@ async def list_accounts(
             User.email,
             User.created_at,
             User.is_admin,
+            User.is_active,
             func.count(Document.id).label("document_count"),
         )
         .outerjoin(Document, Document.owner_id == User.id)
@@ -39,6 +48,7 @@ async def list_accounts(
             email=row.email,
             created_at=row.created_at,
             is_admin=bool(row.is_admin),
+            is_active=bool(row.is_active),
             document_count=row.document_count,
         )
         for row in rows
@@ -51,9 +61,7 @@ async def get_stats(
     _admin: User = Depends(get_current_active_admin),
 ):
     # totals across the whole system, not one user's library
-    user_count = int(
-        (await db.execute(select(func.count(User.id)))).scalar_one()
-    )
+    user_count = int((await db.execute(select(func.count(User.id)))).scalar_one())
     document_count = int(
         (await db.execute(select(func.count(Document.id)))).scalar_one()
     )
@@ -69,12 +77,36 @@ async def get_stats(
     job_rows = (
         await db.execute(select(Job.status, func.count(Job.id)).group_by(Job.status))
     ).all()
-    for status, n in job_rows:
-        if status in counts:
-            counts[status] = int(n)
+    for job_status, n in job_rows:
+        if job_status in counts:
+            counts[job_status] = int(n)
     return AdminStats(
         user_count=user_count,
         document_count=document_count,
         storage_used_bytes=storage_used_bytes,
         jobs_by_status=JobStatusCounts(**counts),
     )
+
+
+@router.patch("/accounts/{account_id}/status", response_model=AdminAccountStatus)
+async def update_account_status(
+    account_id: UUID,
+    update: AdminAccountStatusUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(get_current_active_admin),
+):
+    if account_id == admin.id and not update.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot disable your own account.",
+        )
+
+    account = await db.get(User, account_id)
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Account not found."
+        )
+
+    account.is_active = update.is_active
+    await db.commit()
+    return AdminAccountStatus(id=account.id, is_active=account.is_active)

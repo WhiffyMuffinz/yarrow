@@ -12,7 +12,17 @@ class AdminAccount(BaseModel):
     email: str
     created_at: datetime | None
     is_admin: bool
+    is_active: bool
     document_count: int
+
+
+class AdminAccountStatusUpdate(BaseModel):
+    is_active: bool
+
+
+class AdminAccountStatus(BaseModel):
+    id: UUID
+    is_active: bool
 
 
 class JobStatusCounts(BaseModel):
