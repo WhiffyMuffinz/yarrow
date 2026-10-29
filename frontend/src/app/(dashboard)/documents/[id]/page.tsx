@@ -177,8 +177,12 @@ function DocumentViewerLayout({ refresh }: { refresh: () => void }) {
       <SplitViewer
         original={
           <OriginalPane
+            // Rendered as an element, not called, so BoundingBoxCanvas's hooks
+            // belong to it rather than to the PageFrame that draws it
             renderPageOverlay={
-              showBoundingBoxes ? BoundingBoxCanvas : undefined
+              showBoundingBoxes
+                ? (info) => <BoundingBoxCanvas {...info} />
+                : undefined
             }
           />
         }

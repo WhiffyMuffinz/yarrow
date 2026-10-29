@@ -381,6 +381,18 @@ class DocumentParser:
             )
             region_tables.append(region_table)
 
+            cells_have_boxes = len(part["cell_boxes"]) == len(part["cells"]) and all(
+                box is not None for box in part["cell_boxes"]
+            )
+
+            # The words the table's OCR read, as (recognition score, box) pairs
+            table_ocr = part.get("table_ocr") or {}
+            ocr_words = [
+                (float(score), box)
+                for score, box in zip(table_ocr.get("rec_scores") or [], table_ocr.get("rec_boxes") or [])
+                if score is not None and isinstance(box, (list, tuple)) and len(box) == 4
+            ]
+
             # Constructs the table cells of the corresponding region table
             for cell, bbox in self._get_cell_bbox_pair(
                 cells=part["cells"],
@@ -389,6 +401,17 @@ class DocumentParser:
                 row_count=part["row_count"],
                 col_count=part["col_count"],
             ):
+                # Mean recognition score of the words whose centre lies in the cell
+                cell_scores = (
+                    [
+                        score
+                        for score, box in ocr_words
+                        if bbox[0] <= (box[0] + box[2]) / 2 <= bbox[2] and bbox[1] <= (box[1] + box[3]) / 2 <= bbox[3]
+                    ]
+                    if cells_have_boxes and bbox
+                    else []
+                )
+
                 table_cell = TableCell(
                     id=uuid.uuid4(),
                     region_table_id=region_table.id,
@@ -402,6 +425,7 @@ class DocumentParser:
                     x1=bbox[2] if bbox else 0,
                     y1=bbox[3] if bbox else 0,
                     is_header=cell["is_header"],
+                    confidence=sum(cell_scores) / len(cell_scores) if cell_scores else None,
                 )
                 table_cells.append(table_cell)
 
@@ -559,6 +583,8 @@ class DocumentParser:
                         "bbox": bbox,
                         "cells": parser.cells,
                         "cell_boxes": cell_boxes,
+                        # The OCR's reading of the table's text, to score each cell by
+                        "table_ocr": (table_result or {}).get("table_ocr_pred") or {},
                         "row_count": max(
                             (cell["row_idx"] + cell["row_span"] for cell in parser.cells),
                             default=0,

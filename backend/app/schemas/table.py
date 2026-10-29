@@ -47,6 +47,7 @@ class TableCellNode(StrictModel):
     bbox: BBox
     page_number: int
     region_table_id: UUID
+    confidence: float | None = None
 
 
 class TableNode(StrictModel):
