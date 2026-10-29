@@ -60,6 +60,7 @@ function tree(region: RegionNode = REGION): DocumentTree {
         height: null,
         status: 'completed',
         error_message: null,
+        image_key: null,
         regions: [region],
         warnings: [],
       },
