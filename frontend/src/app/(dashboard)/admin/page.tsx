@@ -2,22 +2,30 @@
 
 import { useEffect, useState } from 'react';
 import { Alert } from '@/components/ui/Alert';
+import { Button } from '@/components/ui/Button';
 import { RequireAdmin } from '@/components/auth/RequireAdmin';
+import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
+import { useAuth } from '@/context/AuthContext';
 import {
+  deleteAdminAccount,
   getAdminStats,
+  jobQueuePlace,
+  jobStage,
   listAccounts,
-  setAccountActive,
+  listAdminJobs,
+  setAccountStatus,
   type AdminAccount,
+  type AdminJob,
   type AdminStats,
   type JobStatusCounts,
 } from '@/lib/admin';
-import { parseApiDate } from '@/lib/documents';
+import { parseApiDate, STATUS_LABELS } from '@/lib/documents';
 import { toApiError } from '@/lib/errors';
 import { formatBytes } from '@/lib/uploads';
 import { cn } from '@/lib/cn';
 import { ActionMenu, ActionMenuItem } from '@/components/ui/ActionMenu';
-import { Ban, Check, X } from 'lucide-react';
+import { Ban, Check, Trash, X, ArrowUpFromDot } from 'lucide-react';
 
 const CELL =
   'border-y border-slate-200 bg-white px-3 py-3 sm:px-4 align-middle first:rounded-l-xl first:border-l last:rounded-r-xl last:border-r';
@@ -85,11 +93,17 @@ function StatsSection({ stats }: { stats: AdminStats }) {
 function AccountTableRow({
   account,
   onStatusChange,
+  onAdminStatusChange,
+  onDelete,
   pending,
+  isSelf,
 }: {
   account: AdminAccount;
   onStatusChange: (accountId: string, isActive: boolean) => void;
+  onAdminStatusChange: (accountId: string, isAdmin: boolean) => void;
+  onDelete: (account: AdminAccount) => void;
   pending: boolean;
+  isSelf: boolean;
 }) {
   const actions: ActionMenuItem[] = [
     {
@@ -100,6 +114,22 @@ function AccountTableRow({
       onSelect: () => onStatusChange(account.id, !account.is_active),
     },
   ];
+
+  actions.push({
+    label: account.is_admin ? 'Demote from Admin' : 'Promote to Admin',
+    icon: ArrowUpFromDot,
+    keepFocus: true,
+    onSelect: () => onAdminStatusChange(account.id, !account.is_admin),
+  });
+
+  if (!isSelf) {
+    actions.push({
+      label: 'Delete',
+      icon: Trash,
+      destructive: true,
+      onSelect: () => onDelete(account),
+    });
+  }
 
   return (
     <tr>
@@ -146,11 +176,17 @@ function AccountTableRow({
 function AccountTable({
   accounts,
   onStatusChange,
+  onAdminStatusChange,
+  onDelete,
   pendingAccountId,
+  currentUserId,
 }: {
   accounts: AdminAccount[];
   onStatusChange: (accountId: string, isActive: boolean) => void;
+  onAdminStatusChange: (accountId: string, isAdmin: boolean) => void;
+  onDelete: (account: AdminAccount) => void;
   pendingAccountId: string | null;
+  currentUserId: string | undefined;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -171,7 +207,10 @@ function AccountTable({
               account={account}
               key={account.id}
               onStatusChange={onStatusChange}
+              onAdminStatusChange={onAdminStatusChange}
+              onDelete={onDelete}
               pending={pendingAccountId === account.id}
+              isSelf={currentUserId === account.id}
             />
           ))}
         </tbody>
@@ -180,14 +219,88 @@ function AccountTable({
   );
 }
 
+function jobStatusLabel(status: AdminJob['status']): string {
+  if (!status) return '—';
+  return STATUS_LABELS[status] ?? status;
+}
+
+function JobTableRow({ job }: { job: AdminJob }) {
+  return (
+    <tr>
+      <td className={CELL}>
+        <span className="font-medium text-slate-900">
+          {job.owner_name || job.owner_email}
+        </span>
+        {job.owner_name && (
+          <p className="text-xs text-slate-500">{job.owner_email}</p>
+        )}
+      </td>
+      <td className={cn(CELL, 'text-slate-700')}>{job.filename}</td>
+      <td className={cn(CELL, 'text-slate-700')}>
+        {jobStatusLabel(job.status)}
+      </td>
+      <td className={cn(CELL, 'tabular-nums text-slate-700')}>
+        {jobQueuePlace(job)}
+      </td>
+      <td className={cn(CELL, 'text-slate-700')}>{jobStage(job)}</td>
+      <td className={cn(CELL, 'text-slate-600')}>{job.error_message || '—'}</td>
+    </tr>
+  );
+}
+
+function JobTable({ jobs }: { jobs: AdminJob[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[48rem] border-separate border-spacing-y-2 text-sm">
+        <thead>
+          <tr>
+            <th className={HEAD}>Owner</th>
+            <th className={HEAD}>Document</th>
+            <th className={HEAD}>Status</th>
+            <th className={HEAD}>Queue</th>
+            <th className={HEAD}>Stage</th>
+            <th className={HEAD}>Failure reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.map((job) => (
+            <JobTableRow job={job} key={job.id} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function JobsSection({ jobs }: { jobs: AdminJob[] }) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold text-slate-900">Jobs</h2>
+      {jobs.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-slate-300 px-4 py-6 text-center text-sm text-slate-600">
+          No processing jobs yet.
+        </p>
+      ) : (
+        <JobTable jobs={jobs} />
+      )}
+    </section>
+  );
+}
+
 function AccountsSection({
   accounts,
   onStatusChange,
+  onAdminStatusChange,
+  onDelete,
   pendingAccountId,
+  currentUserId,
 }: {
   accounts: AdminAccount[];
   onStatusChange: (accountId: string, isActive: boolean) => void;
+  onAdminStatusChange: (accountId: string, isAdmin: boolean) => void;
+  onDelete: (account: AdminAccount) => void;
   pendingAccountId: string | null;
+  currentUserId: string | undefined;
 }) {
   return (
     <section className="space-y-3">
@@ -200,7 +313,10 @@ function AccountsSection({
         <AccountTable
           accounts={accounts}
           onStatusChange={onStatusChange}
+          onAdminStatusChange={onAdminStatusChange}
+          onDelete={onDelete}
           pendingAccountId={pendingAccountId}
+          currentUserId={currentUserId}
         />
       )}
     </section>
@@ -208,17 +324,28 @@ function AccountsSection({
 }
 
 function AdminBody() {
+  const { user, logout } = useAuth();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [accounts, setAccounts] = useState<AdminAccount[] | null>(null);
+  const [jobs, setJobs] = useState<AdminJob[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingAccountId, setPendingAccountId] = useState<string | null>(null);
+  const [accountToDelete, setAccountToDelete] = useState<AdminAccount | null>(
+    null
+  );
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [confirmModalOpen, setConfirmModalOpen] = useState(false);
+  const [selfDemotionError, setSelfDemotionError] = useState<string | null>(
+    null
+  );
 
   async function changeAccountStatus(accountId: string, isActive: boolean) {
     setPendingAccountId(accountId);
     setActionError(null);
     try {
-      await setAccountActive(accountId, isActive);
+      await setAccountStatus(accountId, { is_active: isActive });
       setAccounts(
         (current) =>
           current?.map((account) =>
@@ -234,13 +361,81 @@ function AdminBody() {
     }
   }
 
+  async function confirmDelete() {
+    if (!accountToDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteAdminAccount(accountToDelete.id);
+      setAccounts(
+        (current) =>
+          current?.filter((account) => account.id !== accountToDelete.id) ??
+          null
+      );
+      setAccountToDelete(null);
+      setStats(await getAdminStats());
+    } catch (err) {
+      setDeleteError(toApiError(err).message);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function saveAdminStatus(accountId: string, isAdmin: boolean) {
+    setPendingAccountId(accountId);
+    setActionError(null);
+    try {
+      await setAccountStatus(accountId, { is_admin: isAdmin });
+      if (accountId === user?.id && !isAdmin) {
+        await logout();
+        return;
+      }
+      setAccounts(
+        (current) =>
+          current?.map((account) =>
+            account.id === accountId
+              ? { ...account, is_admin: isAdmin }
+              : account
+          ) ?? null
+      );
+    } catch (err) {
+      setActionError(toApiError(err).message);
+    } finally {
+      setPendingAccountId(null);
+    }
+  }
+
+  function onAdminStatusChange(accountId: string, isAdmin: boolean) {
+    if (accountId === user?.id && !isAdmin) {
+      setSelfDemotionError(null);
+      setConfirmModalOpen(true);
+      return;
+    }
+    void saveAdminStatus(accountId, isAdmin);
+  }
+
+  async function confirmDemoteSelf() {
+    if (!user) return;
+    setPendingAccountId(user.id);
+    setSelfDemotionError(null);
+    try {
+      await setAccountStatus(user.id, { is_admin: false });
+      setConfirmModalOpen(false);
+      await logout();
+    } catch (err) {
+      setSelfDemotionError(toApiError(err).message);
+    } finally {
+      setPendingAccountId(null);
+    }
+  }
   useEffect(() => {
     let current = true;
-    Promise.all([getAdminStats(), listAccounts()])
-      .then(([nextStats, nextAccounts]) => {
+    Promise.all([getAdminStats(), listAccounts(), listAdminJobs()])
+      .then(([nextStats, nextAccounts, nextJobs]) => {
         if (!current) return;
         setStats(nextStats);
         setAccounts(nextAccounts);
+        setJobs(nextJobs);
       })
       .catch((err) => {
         if (!current) return;
@@ -257,7 +452,7 @@ function AdminBody() {
   }, []);
 
   if (error) return <Alert>{error}</Alert>;
-  if (!stats || !accounts) {
+  if (!stats || !accounts || !jobs) {
     return (
       <div className="flex justify-center py-12 text-slate-500">
         <Spinner label="Loading admin dashboard" />
@@ -265,17 +460,102 @@ function AdminBody() {
     );
   }
 
+  const deleteLabel = accountToDelete
+    ? accountToDelete.name || accountToDelete.email
+    : '';
+
   return (
     <>
+      <Modal
+        open={confirmModalOpen}
+        onClose={() => setConfirmModalOpen(false)}
+        title="Demote your administrator account?"
+        dismissible={pendingAccountId !== user?.id}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => setConfirmModalOpen(false)}
+              disabled={pendingAccountId === user?.id}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={confirmDemoteSelf}
+              loading={pendingAccountId === user?.id}
+            >
+              Demote and log out
+            </Button>
+          </>
+        }
+      >
+        <p>
+          You will lose administrator access and be logged out immediately. You
+          will not be able to access this page again unless another
+          administrator restores your role.
+        </p>
+        {selfDemotionError && (
+          <p role="alert" className="mt-3 text-red-700">
+            {selfDemotionError}
+          </p>
+        )}
+      </Modal>
       <StatsSection stats={stats} />
+      <JobsSection jobs={jobs} />
       <div className="space-y-3">
         {actionError && <Alert>{actionError}</Alert>}
         <AccountsSection
           accounts={accounts}
           onStatusChange={changeAccountStatus}
+          onAdminStatusChange={onAdminStatusChange}
+          onDelete={(account) => {
+            setDeleteError(null);
+            setAccountToDelete(account);
+          }}
           pendingAccountId={pendingAccountId}
+          currentUserId={user?.id}
         />
       </div>
+      <Modal
+        open={accountToDelete !== null}
+        onClose={() => {
+          if (!deleting) setAccountToDelete(null);
+        }}
+        dismissible={!deleting}
+        title="Delete this account?"
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              className="sm:w-auto"
+              onClick={() => setAccountToDelete(null)}
+              disabled={deleting}
+              data-autofocus
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              className="sm:w-auto"
+              onClick={confirmDelete}
+              loading={deleting}
+            >
+              {deleteError ? 'Try again' : 'Delete'}
+            </Button>
+          </>
+        }
+      >
+        <p className="break-words">
+          This removes {deleteLabel} and all of their documents. This can&apos;t
+          be undone.
+        </p>
+        {deleteError && (
+          <Alert className="mt-4" tone="error">
+            {deleteError}
+          </Alert>
+        )}
+      </Modal>
     </>
   );
 }
@@ -289,7 +569,7 @@ export default function AdminPage() {
             Admin
           </h1>
           <p className="text-sm text-slate-600">
-            System totals and every user account.
+            System totals, every user account, and processing jobs.
           </p>
         </div>
         <AdminBody />

@@ -21,6 +21,7 @@ from .auth import (
 )
 from .common import BBox, StrictModel
 from .document import (
+    BatchProgress,
     BulkDocumentRequest,
     BulkItemResult,
     DocumentDetail,
@@ -33,6 +34,7 @@ from .document import (
     UploadRejected,
     UploadResponse,
 )
+from .folder import DocumentFolderUpdate, FolderCreate, FolderOut, FolderRename
 from .integrations import (
     CloudConnectionOut,
     OAuthAuthorizeResponse,
@@ -63,19 +65,25 @@ from .table import (
     TableNode,
     TablePart,
 )
+from .tag import TagCreate, TagListItem, TagOut
 
 __all__ = [
     "SCHEMA_VERSION",
     "BBox",
+    "BatchProgress",
     "BulkDocumentRequest",
     "BulkItemResult",
     "CloudConnectionOut",
     "DocumentDetail",
+    "DocumentFolderUpdate",
     "DocumentOut",
     "DocumentRename",
     "DocumentShareOut",
     "DocumentStats",
     "DocumentTree",
+    "FolderCreate",
+    "FolderOut",
+    "FolderRename",
     "JobOut",
     "MergeCandidate",
     "MergeCandidatesOut",
@@ -101,6 +109,9 @@ __all__ = [
     "TableMutationResult",
     "TableNode",
     "TablePart",
+    "TagCreate",
+    "TagListItem",
+    "TagOut",
     "Token",
     "UpdateShareRequest",
     "UploadAccepted",

@@ -29,6 +29,11 @@ export type ReprocessInfo = {
   page_numbers: number[];
 };
 
+export type DocumentTag = {
+  id: string;
+  name: string;
+};
+
 export type DocumentSummary = {
   id: string;
   filename: string;
@@ -38,8 +43,15 @@ export type DocumentSummary = {
   status: DocumentStatus | null;
   error_message: string | null;
   created_at: string | null;
+  deleted_at?: string | null;
+  folder_id: string | null;
   reprocess?: ReprocessInfo | null;
+  tags?: DocumentTag[];
 };
+
+/** Keep in sync with backend TRASH_RETENTION_DAYS. Not a user setting. */
+export const TRASH_RETENTION_DAYS = 7;
+const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 export function isInterrupted(doc: DocumentSummary): boolean {
   return doc.reprocess?.interrupted ?? false;
@@ -65,8 +77,37 @@ export async function reprocessDocument(id: string): Promise<DocumentSummary> {
   return res.data;
 }
 
-export async function listDocuments(): Promise<DocumentSummary[]> {
-  const res = await api.get<DocumentSummary[]>('/api/v1/documents/');
+/**
+ * List documents the caller can see.
+ *
+ * Omit ``folderId`` for the full library (owned and shared). Pass ``null``
+ * for owned unfiled documents, or a folder id for owned documents in that
+ * folder.
+ */
+export async function listDocuments(
+  folderId?: string | null
+): Promise<DocumentSummary[]> {
+  const params =
+    folderId === undefined
+      ? undefined
+      : { folder_id: folderId === null ? 'null' : folderId };
+  const res = await api.get<DocumentSummary[]>('/api/v1/documents/', {
+    params,
+  });
+  return res.data;
+}
+
+/**
+ * Move a document into a folder, or unfile it with null (US-103).
+ */
+export async function moveDocumentToFolder(
+  id: string,
+  folderId: string | null
+): Promise<DocumentSummary> {
+  const res = await api.patch<DocumentSummary>(
+    `/api/v1/documents/${id}/folder`,
+    { folder_id: folderId }
+  );
   return res.data;
 }
 
@@ -120,6 +161,45 @@ export function newUploadId(): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+/**
+ * A new id for one upload run (US-31). Every file in the run is sent with it,
+ * so the server can group them and report their progress together.
+ */
+export function newBatchId(): string {
+  return newUploadId();
+}
+
+/** Per-status counts for one upload run; matches BatchProgress on the server. */
+export type BatchProgress = {
+  batch_id: string;
+  total: number;
+  queued: number;
+  processing: number;
+  completed: number;
+  failed: number;
+  canceled: number;
+  created_at: string | null;
+};
+
+/** Whether any file in the batch is still queued or being processed. */
+export function isBatchWorking(progress: BatchProgress): boolean {
+  return progress.queued + progress.processing > 0;
+}
+
+/**
+ * The latest counts for a batch (US-31). Counted on the server from the
+ * documents' current statuses, so it is accurate after leaving and coming
+ * back to the page. Someone else's batch, or an unknown one, is a 404.
+ */
+export async function getBatchProgress(
+  batchId: string
+): Promise<BatchProgress> {
+  const res = await api.get<BatchProgress>(
+    `/api/v1/documents/batches/${batchId}`
+  );
+  return res.data;
+}
+
 type UploadResponse = {
   accepted: {
     document_id: string;
@@ -151,15 +231,19 @@ export type UploadOutcome =
 /**
  * Upload a single file (US-7). The page sends files one at a time so each has
  * its own progress and result, and one failure can't affect the rest (US-8).
+ * ``batchId`` ties the file to its upload run (US-31).
  */
 export async function uploadDocument(
   file: File,
   uploadId: string,
-  onProgress: (percent: number) => void
+  onProgress: (percent: number) => void,
+  batchId?: string
 ): Promise<UploadOutcome> {
   const form = new FormData();
   form.append('files', file);
   form.append('client_upload_ids', uploadId);
+  // Groups this file with the others of the same run (US-31).
+  if (batchId) form.append('batch_id', batchId);
   try {
     const res = await api.post<UploadResponse>(
       '/api/v1/documents/upload',
@@ -194,13 +278,44 @@ export async function uploadDocument(
 }
 
 /**
- * Permanently delete a document and everything extracted from it.
- * Throws the raw request error like the other calls here; pass it to
- * toApiError for display. A 409 (code DOCUMENT_BUSY) means processing was
- * saving results at that moment and the delete can be retried.
+ * Move a document to trash. It can be restored for 7 days. Throws the raw
+ * request error like the other calls here; pass it to toApiError for
+ * display. A 409 (code DOCUMENT_BUSY) means processing was saving results
+ * at that moment and the delete can be retried.
  */
 export async function deleteDocument(id: string): Promise<void> {
   await api.delete(`/api/v1/documents/${id}`);
+}
+
+export async function listTrash(): Promise<DocumentSummary[]> {
+  const res = await api.get<DocumentSummary[]>('/api/v1/documents/trash');
+  return res.data;
+}
+
+export async function restoreDocument(id: string): Promise<DocumentSummary> {
+  const res = await api.post<DocumentSummary>(
+    `/api/v1/documents/${id}/restore`
+  );
+  return res.data;
+}
+
+/** Permanently wipe a trashed document without waiting out the 7 days. */
+export async function permanentlyDeleteDocument(id: string): Promise<void> {
+  await api.delete(`/api/v1/documents/${id}/permanent`);
+}
+
+export async function emptyTrash(): Promise<void> {
+  await api.delete('/api/v1/documents/trash');
+}
+
+export function trashExpiresAt(deletedAt: string): Date {
+  return new Date(parseApiDate(deletedAt).getTime() + TRASH_RETENTION_MS);
+}
+
+/** Whole days left before permanent purge, at least 0. */
+export function trashDaysLeft(deletedAt: string): number {
+  const ms = trashExpiresAt(deletedAt).getTime() - Date.now();
+  return Math.max(0, Math.ceil(ms / (24 * 60 * 60 * 1000)));
 }
 
 /** One document's outcome in a bulk request. ``ok`` is false with a reason when it could not be acted on. */
@@ -225,9 +340,9 @@ export async function bulkReprocess(
 }
 
 /**
- * Delete several documents at once. The server deletes each id it can and
- * reports the rest (e.g. a document a worker is saving results for), so the
- * caller can drop the ones it deleted and keep the ones that failed.
+ * Move several documents to trash at once. The server acts on each id it
+ * can and reports the rest (e.g. a document a worker is saving results for),
+ * so the caller can drop the ones it deleted and keep the ones that failed.
  */
 export async function bulkDelete(documentIds: string[]): Promise<BulkResult[]> {
   const res = await api.post<BulkResult[]>('/api/v1/documents/bulk-delete', {

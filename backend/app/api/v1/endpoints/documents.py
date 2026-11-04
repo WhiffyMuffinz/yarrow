@@ -9,23 +9,40 @@ from fastapi import (
     File,
     Form,
     HTTPException,
+    Query,
     Response,
     UploadFile,
     status,
 )
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from yarrow_db.locking import is_lock_timeout, lock_timeout_statement
-from yarrow_db.models import Document, DocumentShare, Job, Page, Region, User
+from yarrow_db.models import (
+    Batch,
+    Document,
+    DocumentShare,
+    DocumentTag,
+    Folder,
+    Job,
+    Page,
+    Region,
+    Tag,
+    User,
+)
 from yarrow_db.models.region import RegionImage
 from yarrow_storage import ObjectNotFoundError, get_storage
 
 from app.core.config import settings
 from app.core.database import get_db
-from app.core.queue import enqueue_document_processing, revoke_document_processing
+from app.core.queue import (
+    enqueue_document_processing,
+    job_priority,
+    revoke_document_processing,
+)
 from app.core.security import get_current_user
 from app.deps import (
     DocumentAccess,
@@ -35,9 +52,11 @@ from app.deps import (
     require_read_access,
 )
 from app.schemas import (
+    BatchProgress,
     BulkDocumentRequest,
     BulkItemResult,
     DocumentDetail,
+    DocumentFolderUpdate,
     DocumentOut,
     DocumentRename,
     JobOut,
@@ -46,7 +65,16 @@ from app.schemas import (
     UploadRejected,
     UploadResponse,
 )
-from app.services.document_deletion import delete_document, delete_stored_objects
+from app.services.document_deletion import (
+    DocumentDeletionError,
+    DocumentRestoreError,
+    delete_stored_objects,
+    empty_user_trash,
+    permanently_delete_trashed,
+    purge_expired_documents,
+    restore_document,
+    soft_delete_document,
+)
 from app.services.export import content_disposition, display_stem, safe_stem
 from app.services.failure_messages import (
     DOCUMENT_FAILED_MESSAGE,
@@ -57,7 +85,6 @@ from app.services.reprocess import (
     ReprocessError,
     documents_out,
     reprocess_document,
-    reprocess_info_for,
 )
 
 router = APIRouter()
@@ -65,6 +92,8 @@ logger = logging.getLogger(__name__)
 
 # Jobs a user can still cancel (US-42): waiting in the queue, or being processed.
 CANCELABLE_JOB_STATES = {"queued", "processing"}
+# Every Document.status value, in the order a batch summary reports them.
+STATUS_VALUES = ("queued", "processing", "completed", "failed", "canceled")
 # Postgres deadlock_detected
 DEADLOCK_DETECTED = "40P01"
 
@@ -89,18 +118,22 @@ SNIFF_BYTES = 8192
 READ_CHUNK = 1024 * 1024
 
 
-async def _find_earlier_upload(
+async def _earlier_upload(
     db: AsyncSession, owner_id: UUID, upload_id: str
-) -> UploadAccepted | None:
-    """The result of this user's earlier upload with the same client id."""
+) -> Document | None:
+    """This user's earlier upload with the same client id, if any."""
     result = await db.execute(
         select(Document).where(
-            Document.owner_id == owner_id, Document.client_upload_id == upload_id
+            Document.owner_id == owner_id,
+            Document.client_upload_id == upload_id,
+            Document.deleted_at.is_(None),
         )
     )
-    document = result.scalars().first()
-    if document is None:
-        return None
+    return result.scalars().first()
+
+
+async def _accepted_for(db: AsyncSession, document: Document) -> UploadAccepted:
+    """The upload result of a document that was stored earlier."""
     job = (
         (
             await db.execute(
@@ -123,6 +156,33 @@ async def _find_earlier_upload(
             document.error_message, document.status, DOCUMENT_FAILED_MESSAGE
         ),
     )
+
+
+async def _revoke_tasks(task_ids: list[str]) -> None:
+    for task_id in task_ids:
+        try:
+            await run_in_threadpool(revoke_document_processing, task_id)
+        except Exception:
+            logger.exception(f"Revoking task {task_id} failed")
+
+
+async def _delete_storage(keys: list[str], context: str) -> None:
+    if not keys:
+        return
+    orphaned = await run_in_threadpool(
+        delete_stored_objects, get_storage(), keys
+    )
+    if orphaned:
+        logger.error(
+            f"{context} left {len(orphaned)} stored object(s) behind: {orphaned}"
+        )
+
+
+async def _cleanup_expired_trash(db: AsyncSession) -> None:
+    """Wipe trash older than 7 days, then drop stored files and queued tasks."""
+    outcome = await purge_expired_documents(db)
+    await _revoke_tasks(outcome.task_ids)
+    await _delete_storage(outcome.storage_keys, "Purging expired trash")
 
 
 def _megabytes(size: int) -> str:
@@ -161,10 +221,36 @@ async def _measure(upload: UploadFile) -> tuple[int, str, str | None]:
     return size, digest.hexdigest(), kind.extension if kind else None
 
 
+async def _get_or_create_batch(
+    db: AsyncSession, owner_id: UUID, batch_id: UUID
+) -> Batch:
+    """The caller's batch with this id, created on first sight (US-31).
+
+    Files are uploaded one request at a time, all carrying the same id, so
+    the first request creates the row and the rest find it. The insert
+    ignores a conflict rather than checking first, so two requests arriving
+    together (even from different users guessing the same id) cannot both
+    insert and one of them fail. Whoever lost the race, or anyone sending
+    the id of someone else's batch, gets a 404 and never joins it.
+    """
+    await db.execute(
+        pg_insert(Batch)
+        .values(id=batch_id, owner_id=owner_id)
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    batch = await db.get(Batch, batch_id, populate_existing=True)
+    if batch is None or batch.owner_id != owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found"
+        )
+    return batch
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_documents(
     files: list[UploadFile] = File(...),
     client_upload_ids: list[str] | None = Form(None),
+    batch_id: UUID | None = Form(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -177,6 +263,9 @@ async def upload_documents(
     ``client_upload_ids`` (optional, one per file, in the same order) makes
     retries safe: a file whose id this user has already uploaded returns the
     existing document instead of being stored a second time.
+
+    ``batch_id`` (optional) groups every file of one upload run so their
+    progress can be reported together (US-31). Jobs stay one per file.
     """
     if client_upload_ids is not None:
         if len(client_upload_ids) != len(files):
@@ -209,6 +298,9 @@ async def upload_documents(
         .execution_options(populate_existing=True)
     )
     current_user = locked.scalar_one()
+    # Created on the first file this request keeps, so that a request whose
+    # files are all rejected leaves no empty batch behind.
+    batch: Batch | None = None
     # Running total, so that several files in one request cannot each pass a
     # quota check that they only collectively exceed.
     used_bytes = current_user.storage_used_bytes or 0
@@ -218,11 +310,19 @@ async def upload_documents(
         upload_id = client_upload_ids[index] if client_upload_ids else None
 
         if upload_id:
-            earlier = await _find_earlier_upload(db, current_user.id, upload_id)
+            earlier = await _earlier_upload(db, current_user.id, upload_id)
             if earlier is not None:
                 # A retry of an upload that already succeeded (its response
                 # was lost): report the stored document, store nothing new.
-                accepted.append(earlier)
+                if batch_id is not None and earlier.batch_id is None:
+                    # The first attempt was stored before its batch was known
+                    # (or without one); count it in the run being retried.
+                    if batch is None:
+                        batch = await _get_or_create_batch(
+                            db, current_user.id, batch_id
+                        )
+                    earlier.batch_id = batch.id
+                accepted.append(await _accepted_for(db, earlier))
                 continue
 
         size, _sha256, extension = await _measure(upload)
@@ -263,6 +363,15 @@ async def upload_documents(
             )
             continue
 
+        if batch_id is not None and batch is None:
+            # Refuse someone else's batch before storing anything. The batch
+            # itself is only created once this file is safely stored, so a
+            # storage failure leaves no empty batch behind.
+            existing = await db.get(Batch, batch_id)
+            if existing is not None and existing.owner_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found"
+                )
         document_id = uuid4()
         key = _storage_key(document_id)
         try:
@@ -282,6 +391,8 @@ async def upload_documents(
             )
             continue
 
+        if batch_id is not None and batch is None:
+            batch = await _get_or_create_batch(db, current_user.id, batch_id)
         document = Document(
             id=document_id,
             owner_id=current_user.id,
@@ -291,6 +402,7 @@ async def upload_documents(
             storage_key=key,
             status="queued",
             client_upload_id=upload_id,
+            batch_id=batch.id if batch else None,
         )
         job = Job(
             id=uuid4(),
@@ -327,7 +439,9 @@ async def upload_documents(
             # Re-reported from an earlier upload; it was queued back then.
             continue
         try:
-            item.task_id = enqueue_document_processing(item.job_id)
+            item.task_id = enqueue_document_processing(
+                item.job_id, priority=job_priority(item.file_size_bytes)
+            )
         except Exception:
             # The file is already stored and counted, so the upload itself
             # succeeded; only starting processing failed. Record that on the
@@ -358,23 +472,167 @@ async def upload_documents(
 
 @router.get("/", response_model=list[DocumentOut])
 async def list_documents(
+    folder_id: str | None = Query(
+        default=None,
+        description=(
+            "Filter owned documents by folder. Pass a folder UUID, or the "
+            "string 'null' for unfiled documents. Omit to list all documents "
+            "the caller can see, including shares."
+        ),
+    ),
+    tag_id: UUID | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    shared_subquery = select(DocumentShare.document_id).where(
-        DocumentShare.shared_with_user_id == current_user.id
+    await _cleanup_expired_trash(db)
+    if tag_id is not None:
+        query = (
+            select(Document)
+            .join(DocumentTag, DocumentTag.document_id == Document.id)
+            .join(Tag, Tag.id == DocumentTag.tag_id)
+            .where(
+                Document.owner_id == current_user.id,
+                Document.deleted_at.is_(None),
+                DocumentTag.tag_id == tag_id,
+                Tag.owner_id == current_user.id,
+            )
+        )
+        if folder_id and folder_id.lower() == "null":
+            query = query.where(Document.folder_id.is_(None))
+        elif folder_id:
+            try:
+                folder_uuid = UUID(folder_id)
+            except ValueError:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="folder_id must be a UUID or the string 'null'",
+                ) from None
+            folder = await db.get(Folder, folder_uuid)
+            if folder is None or folder.owner_id != current_user.id:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Folder not found",
+                )
+            query = query.where(Document.folder_id == folder_uuid)
+        result = await db.execute(query.order_by(Document.created_at.desc()))
+        return await documents_out(db, list(result.scalars().all()))
+
+    if folder_id is None or folder_id == "":
+        shared_subquery = select(DocumentShare.document_id).where(
+            DocumentShare.shared_with_user_id == current_user.id
+        )
+        result = await db.execute(
+            select(Document)
+            .where(
+                Document.deleted_at.is_(None),
+                or_(
+                    Document.owner_id == current_user.id,
+                    Document.id.in_(shared_subquery),
+                ),
+            )
+            .order_by(Document.created_at.desc())
+        )
+        return await documents_out(db, list(result.scalars().all()))
+
+    # folder filters are for the owner's docs only; shares stay in the
+    # unfiltered list.
+    query = select(Document).where(
+        Document.owner_id == current_user.id,
+        Document.deleted_at.is_(None),
     )
+    if folder_id.lower() == "null":
+        query = query.where(Document.folder_id.is_(None))
+    else:
+        try:
+            folder_uuid = UUID(folder_id)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="folder_id must be a UUID or the string 'null'",
+            ) from None
+        folder = await db.get(Folder, folder_uuid)
+        if folder is None or folder.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Folder not found",
+            )
+        query = query.where(Document.folder_id == folder_uuid)
+
+    result = await db.execute(query.order_by(Document.created_at.desc()))
+    return await documents_out(db, list(result.scalars().all()))
+
+
+@router.get("/trash", response_model=list[DocumentOut])
+async def list_trashed_documents(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The current user's trash: deleted_at set and not yet past 7 days."""
+    await _cleanup_expired_trash(db)
     result = await db.execute(
         select(Document)
         .where(
-            or_(
-                Document.owner_id == current_user.id,
-                Document.id.in_(shared_subquery),
-            )
+            Document.owner_id == current_user.id,
+            Document.deleted_at.is_not(None),
         )
-        .order_by(Document.created_at.desc())
+        .order_by(Document.deleted_at.desc())
     )
     return await documents_out(db, list(result.scalars().all()))
+
+
+@router.delete("/trash", status_code=status.HTTP_204_NO_CONTENT)
+async def empty_trash_endpoint(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Permanently delete every document in this user's trash."""
+    outcome = await empty_user_trash(db, current_user.id)
+    await _revoke_tasks(outcome.task_ids)
+    await _delete_storage(outcome.storage_keys, "Emptying trash")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/batches/{batch_id}", response_model=BatchProgress)
+async def get_batch_progress(
+    batch_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Per-status counts for the files uploaded together in one run (US-31).
+
+    Counted from the documents each time it is asked, so leaving and coming
+    back to the Upload page shows where things really are. Another user's
+    batch is a 404, like another user's document.
+    """
+    batch = await db.get(Batch, batch_id)
+    if batch is None or batch.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found"
+        )
+
+    rows = await db.execute(
+        select(Document.status, func.count())
+        # A file moved to the trash has left the run as far as the user can
+        # see, so it no longer counts toward the batch.
+        .where(Document.batch_id == batch_id, Document.deleted_at.is_(None))
+        .group_by(Document.status)
+    )
+    counts = {state: 0 for state in STATUS_VALUES}
+    for state, count in rows:
+        if state not in counts:
+            # Still in the batch, so still in the total. Reported as queued
+            # for the user, and logged so a bad or new status value is seen.
+            logger.warning(
+                f"Batch {batch_id}: {count} document(s) have status {state!r}"
+            )
+            state = "queued"
+        counts[state] += count
+    return BatchProgress(
+        batch_id=batch.id,
+        total=sum(counts.values()),
+        created_at=batch.created_at,
+        **counts,
+    )
 
 
 @router.get("/{document_id}", response_model=DocumentDetail)
@@ -393,12 +651,13 @@ async def get_document(
     pages = await db.execute(
         select(Page).where(Page.document_id == document_id).order_by(Page.page_number)
     )
-    detail = DocumentDetail.model_validate(document)
-    detail.reprocess = (await reprocess_info_for(db, [document]))[document.id]
+    base = (await documents_out(db, [document]))[0]
     # Validated one by one so each gets the user-facing error filter (US-11).
-    detail.jobs = [JobOut.model_validate(job) for job in jobs.scalars()]
-    detail.pages = [PageOut.model_validate(page) for page in pages.scalars()]
-    return detail
+    return DocumentDetail(
+        **base.model_dump(),
+        jobs=[JobOut.model_validate(job) for job in jobs.scalars()],
+        pages=[PageOut.model_validate(page) for page in pages.scalars()],
+    )
 
 
 @router.patch("/{document_id}", response_model=DocumentOut)
@@ -415,6 +674,37 @@ async def rename_document(
     """
     document = access.document
     document.filename = body.filename
+    await db.commit()
+    await db.refresh(document)
+    return (await documents_out(db, [document]))[0]
+
+
+@router.patch("/{document_id}/folder", response_model=DocumentOut)
+async def move_document_to_folder(
+    body: DocumentFolderUpdate,
+    access: DocumentAccess = Depends(get_document_access),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Move an owned document into a folder, or unfile it with null.
+
+    A folder that is missing or belongs to someone else is a 404, so a
+    caller cannot tell other people's folders apart from missing ones.
+    """
+    if access.document.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the owner can move this document",
+        )
+    document = access.document
+    if body.folder_id is not None:
+        folder = await db.get(Folder, body.folder_id)
+        if folder is None or folder.owner_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Folder not found",
+            )
+    document.folder_id = body.folder_id
     await db.commit()
     await db.refresh(document)
     return (await documents_out(db, [document]))[0]
@@ -529,38 +819,90 @@ async def delete_document_endpoint(
     access: DocumentAccess = Depends(require_owner_access),
     db: AsyncSession = Depends(get_db),
 ):
-    """Permanently delete a document, its extracted data and its jobs.
+    """Move a document to trash for 7 days.
 
-    Allowed in any processing state. A worker that runs it anyway finds its
-    job gone. If processing is saving results for this document at that moment,
-    the request answers 409 after a short wait instead of hanging, and can
-    simply be retried.
+    Extracted data and files stay so it can be restored. Unfinished jobs are
+    canceled and their tasks revoked. If processing is saving results for this
+    document at that moment, the request answers 409 after a short wait.
     """
 
     document_id = access.document.id
-    outcome = await delete_document(db, document_id)
+    outcome = await soft_delete_document(db, document_id)
     if not outcome.ok:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"detail": outcome.detail, "code": outcome.error.value},
         )
 
-    for task_id in outcome.task_ids:
-        try:
-            await run_in_threadpool(revoke_document_processing, task_id)
-        except Exception:
-            logger.exception(f"Revoking task {task_id} failed")
+    await _revoke_tasks(outcome.task_ids)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
-    if outcome.storage_keys:
-        orphaned = await run_in_threadpool(
-            delete_stored_objects, get_storage(), outcome.storage_keys
+
+@router.post("/{document_id}/restore", response_model=DocumentOut)
+async def restore_document_endpoint(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Restore a trashed document if it is still within 7 days.
+
+    Older than that is permanently deleted (410). Missing or not owned is 404.
+    """
+    outcome = await restore_document(db, document_id, current_user.id)
+    if outcome.error is DocumentRestoreError.NOT_FOUND:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         )
-        if orphaned:
-            logger.error(
-                f"Deleted document {document_id} left "
-                f"{len(orphaned)} stored object(s) behind: {orphaned}"
-            )
+    if outcome.error is DocumentRestoreError.NOT_TRASHED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"detail": outcome.detail, "code": outcome.error.value},
+        )
+    if outcome.error is DocumentRestoreError.EXPIRED:
+        await _revoke_tasks(outcome.task_ids)
+        await _delete_storage(
+            outcome.storage_keys, f"Purging expired document {document_id}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail={"detail": outcome.detail, "code": outcome.error.value},
+        )
+    if outcome.error is DocumentRestoreError.BUSY:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"detail": outcome.detail, "code": outcome.error.value},
+        )
+    document = outcome.document
+    if document is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+        )
+    await _cleanup_expired_trash(db)
+    return (await documents_out(db, [document]))[0]
 
+
+@router.delete("/{document_id}/permanent", status_code=status.HTTP_204_NO_CONTENT)
+async def permanently_delete_document_endpoint(
+    document_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Permanently wipe a trashed document now, without waiting 7 days."""
+    outcome = await permanently_delete_trashed(db, document_id, current_user.id)
+    if outcome.error is DocumentDeletionError.NOT_FOUND:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+        )
+    if not outcome.ok:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"detail": outcome.detail, "code": outcome.error.value},
+        )
+
+    await _revoke_tasks(outcome.task_ids)
+    await _delete_storage(
+        outcome.storage_keys, f"Deleted document {document_id}"
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -618,19 +960,18 @@ async def bulk_delete_documents(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Permanently delete several documents at once, reporting each on its own.
+    """Move several documents to trash at once, reporting each on its own.
 
-    Each id goes through the same single-document deletion: the row, its
-    extracted data and jobs are removed and the owner's storage quota is
-    refunded. A document that a worker is saving results for at that moment is
-    reported with ``ok: false`` (code ``DOCUMENT_BUSY``) so it can be retried
-    without blocking the rest of the batch.
+    Each id goes through the same single-document soft delete. A document that
+    a worker is saving results for at that moment is reported with ``ok:
+    false`` (code ``DOCUMENT_BUSY``) so it can be retried without blocking the
+    rest of the batch.
     """
     user_id = current_user.id
     results: list[BulkItemResult] = []
     for document_id in body.document_ids:
-        # Re-read the user each pass: delete_document commits per document,
-        # which expires the object loaded by get_current_user.
+        # Re-read the user each pass: soft_delete_document commits per
+        # document, which expires the object loaded by get_current_user.
         user = await db.get(User, user_id)
         try:
             access = await get_document_access(document_id, db=db, current_user=user)
@@ -657,7 +998,7 @@ async def bulk_delete_documents(
             )
             continue
 
-        outcome = await delete_document(db, document_id)
+        outcome = await soft_delete_document(db, document_id)
         if not outcome.ok:
             results.append(
                 BulkItemResult(
@@ -666,22 +1007,7 @@ async def bulk_delete_documents(
             )
             continue
 
-        for task_id in outcome.task_ids:
-            try:
-                await run_in_threadpool(revoke_document_processing, task_id)
-            except Exception:
-                logger.exception(f"Revoking task {task_id} failed")
-
-        if outcome.storage_keys:
-            orphaned = await run_in_threadpool(
-                delete_stored_objects, get_storage(), outcome.storage_keys
-            )
-            if orphaned:
-                logger.error(
-                    f"Deleted document {document_id} left "
-                    f"{len(orphaned)} stored object(s) behind: {orphaned}"
-                )
-
+        await _revoke_tasks(outcome.task_ids)
         results.append(BulkItemResult(document_id=document_id, ok=True))
     return results
 
