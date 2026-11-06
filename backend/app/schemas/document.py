@@ -6,10 +6,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.schemas.common import StrictModel
 from app.schemas.tag import TagOut
 from app.services.failure_messages import (
     DOCUMENT_FAILED_MESSAGE,
-    PAGE_FAILED_MESSAGE,
+    page_error_message,
     public_error_message,
 )
 
@@ -23,6 +24,9 @@ class JobOut(BaseModel):
     pages_processed: int | None = None
     total_pages: int | None = None
     error_message: str | None = None
+    model_name: str | None = None
+    model_version: str | None = None
+    pipeline_version: str | None = None
 
     @model_validator(mode="after")
     def _only_user_facing_errors(self):
@@ -40,14 +44,15 @@ class PageOut(BaseModel):
     status: str | None = None
     width: float | None = None
     height: float | None = None
+    error_code: str | None = None
     error_message: str | None = None
+    has_thumbnail: bool = False
+    model_name: str | None = None
+    model_version: str | None = None
 
     @model_validator(mode="after")
     def _only_user_facing_errors(self):
-        # The worker may store raw exception text here (US-11, NFR-6).
-        self.error_message = public_error_message(
-            self.error_message, self.status, PAGE_FAILED_MESSAGE
-        )
+        self.error_message = page_error_message(self.error_code, self.status)
         return self
 
 
@@ -63,6 +68,12 @@ class ReprocessInfo(BaseModel):
 
     # The first few unfinished page numbers, for display ("incomplete" only).
     page_numbers: list[int] = Field(default_factory=list)
+
+
+class ModelUsage(BaseModel):
+    model_name: str | None
+    model_version: str | None
+    page_count: int
 
 
 class DocumentOut(BaseModel):
@@ -84,6 +95,10 @@ class DocumentOut(BaseModel):
     reprocess: ReprocessInfo | None = None
     # filled in by documents_out from document_tags; not a column.
     tags: list[TagOut] = Field(default_factory=list)
+    model_name: str | None = None
+    model_version: str | None = None
+    pipeline_version: str | None = None
+    processed_at: datetime | None = None
 
     @model_validator(mode="after")
     def _only_user_facing_errors(self):
@@ -116,6 +131,7 @@ class DocumentRename(BaseModel):
 class DocumentDetail(DocumentOut):
     jobs: list[JobOut] = []
     pages: list[PageOut] = []
+    models: list[ModelUsage] = []
 
 
 class UploadAccepted(BaseModel):
@@ -133,6 +149,19 @@ class UploadAccepted(BaseModel):
     message: str | None = None
 
 
+class DuplicateOf(BaseModel):
+    """The caller's own document that an upload was identical to (US-79).
+
+    Only ever describes a document the caller owns, so naming it discloses
+    nothing new. ``status`` lets the client suggest reprocessing a copy that
+    failed instead of storing the file again.
+    """
+
+    document_id: UUID
+    filename: str
+    status: str | None = None
+
+
 class UploadRejected(BaseModel):
     """One file that was not accepted, so a bulk upload can report per file."""
 
@@ -142,6 +171,10 @@ class UploadRejected(BaseModel):
     # briefly unavailable), so the client can offer "Retry". False for
     # problems with the file itself, which retrying cannot fix.
     retryable: bool = False
+    # Set when the file was refused only because the caller already has an
+    # identical one (US-79). Sending it again with ``allow_duplicate`` stores
+    # a second copy.
+    duplicate_of: DuplicateOf | None = None
 
 
 class UploadResponse(BaseModel):
@@ -184,3 +217,50 @@ class BatchProgress(BaseModel):
     failed: int
     canceled: int
     created_at: datetime | None = None
+    # When every file was last seen in a final state (US-60); None while any
+    # file is still queued or processing.
+    completed_at: datetime | None = None
+
+
+class BatchSealed(BaseModel):
+    """The run has finished sending its files (US-60)."""
+
+    batch_id: UUID
+    sealed_at: datetime
+
+
+class BatchAcknowledge(StrictModel):
+    """Notifications the browser has shown, so they are never offered again."""
+
+    batch_ids: list[UUID] = Field(min_length=1, max_length=50)
+
+
+class BatchAcknowledged(BaseModel):
+    """The batches this request marked as announced."""
+
+    acknowledged: list[UUID]
+
+
+class BatchNotification(BaseModel):
+    """One finished batch, announced once (US-60): how its files ended up."""
+
+    batch_id: UUID
+    total: int
+    completed: int
+    failed: int
+    canceled: int
+    created_at: datetime | None = None
+    completed_at: datetime | None = None
+
+
+class BatchNotifications(BaseModel):
+    """Newly finished batches, plus how many unannounced ones are left.
+
+    Every batch in ``notifications`` is leased to this request: other tabs
+    are not offered it unless the lease expires without an acknowledgement.
+    ``pending`` (unannounced batches still running, unsealed, or leased but
+    unacknowledged) lets the browser stop checking once it reaches 0.
+    """
+
+    notifications: list[BatchNotification]
+    pending: int

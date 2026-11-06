@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 from yarrow_db.config import DatabaseSettings
 
@@ -23,11 +24,24 @@ class Settings(DatabaseSettings):
     # The design document (3.1, option 4) bounds user uploads by total bytes,
     # because a file count says nothing about how many pages it holds.
     STORAGE_QUOTA_BYTES: int = 1024 * 1024 * 1024  # 1 GiB per user
+    STORAGE_WARNING_RATIO: float = 0.80
+    STORAGE_CRITICAL_RATIO: float = 0.95
 
     # A job still queued or processing with no update for this long was lost
     # Just over the worker's Celery task_time_limit (3600s)
     JOB_INTERRUPTED_AFTER_SECONDS: int = 65 * 60
     MAX_UPLOAD_BYTES: int = 256 * 1024 * 1024  # 256 MiB per file
+    # Resumable uploads (US-80): how long an unfinished upload can be resumed
+    # after its last chunk. After that its chunks are swept and it starts over.
+    UPLOAD_SESSION_TTL_HOURS: int = 24
+
+    # US-60 batch completion notifications. A batch the browser never sealed
+    # (its tab closed mid-upload) counts as sealed once no file has joined it
+    # for this long.
+    BATCH_SEAL_TIMEOUT_SECONDS: int = 10 * 60
+    # A claimed notification not acknowledged within this long (the reply was
+    # lost, the tab closed) can be claimed again.
+    BATCH_NOTIFICATION_LEASE_SECONDS: int = 60
 
     SECRET_KEY: str = "supersecretkey_please_change_in_production"
     JWT_ALGORITHM: str = "HS256"
@@ -42,6 +56,13 @@ class Settings(DatabaseSettings):
     # Which endpoint the *worker* uses is set in its own Settings.
     INFERENCE_SERVICE_URL: str = "http://gateway:8080/layout-parsing"
     INFERENCE_API_KEY: str = ""
+
+    INFERENCE_HEALTH_TARGETS: list[dict[str, str]] = Field(default_factory=list)
+    INFERENCE_HEALTH_TIMEOUT_SECONDS: float = 3.0
+    INFERENCE_DEGRADED_LATENCY_MS: int = 1500
+    WORKER_PING_TIMEOUT_SECONDS: float = 2.0
+    WORKER_DEGRADED_LATENCY_MS: int = 1000
+    NODE_STATUS_CACHE_SECONDS: int = 5
 
     # Outbound email (US-1 verification, US-67 reset). SMTP_HOST unset means
     # "no mail server": nothing is sent, which is what a developer running the

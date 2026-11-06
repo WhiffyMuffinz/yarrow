@@ -52,10 +52,14 @@ export type PageNode = {
   width: number | null;
   height: number | null;
   status: string | null;
+  error_code?: string | null;
   error_message: string | null;
   // Set only when the page was rotated before OCR. The viewer shows the
   // corrected upright image for those pages; null for everything else.
   image_key: string | null;
+  has_thumbnail: boolean;
+  model_name?: string | null;
+  model_version?: string | null;
   regions: RegionNode[];
   warnings: WarningNode[];
 };
@@ -76,6 +80,7 @@ export type TablePart = {
 };
 
 export type TableCellNode = {
+  id: string;
   // Global row within the logical table
   row: number;
   col: number;

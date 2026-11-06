@@ -30,13 +30,15 @@ pypdf = "*"
 pdfplumber = "*"
 celery = {extras = ["redis"], version = "*"}
 redis = "*"
+httpx = "*"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "*"
 pytest-asyncio = "*"
-httpx = "*"
 ruff = "*"
 mypy = "*"
+respx = "*"
+requests = "^2.34.2"
 
 [tool.ruff]
 line-length = 88

@@ -1,8 +1,10 @@
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.common import StrictModel
 from app.services.failure_messages import (
     DOCUMENT_FAILED_MESSAGE,
     public_error_message,
@@ -63,6 +65,12 @@ class AdminJob(BaseModel):
     total_pages: int | None = None
     error_message: str | None = None
     created_at: datetime | None = None
+    is_stuck: bool = False
+    can_cancel: bool = False
+    can_retry: bool = False
+    canceled_by_id: UUID | None = None
+    cancel_reason: str | None = None
+    retry_of_job_id: UUID | None = None
 
     @model_validator(mode="after")
     def _only_user_facing_errors(self):
@@ -71,3 +79,51 @@ class AdminJob(BaseModel):
             self.error_message, self.status, DOCUMENT_FAILED_MESSAGE
         )
         return self
+
+
+class AdminJobCancelRequest(StrictModel):
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class AdminJobActionResult(BaseModel):
+    job_id: UUID
+    document_id: UUID
+    status: str
+    new_job_id: UUID | None = None
+    new_job_status: str | None = None
+    scope: Literal["incomplete", "all"] | None = None
+    pages: list[int] | None = None
+
+
+NodeKind = Literal["worker", "inference"]
+NodeHealth = Literal["healthy", "degraded", "down", "unknown"]
+
+
+class AdminNodeStatus(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    kind: NodeKind
+    name: str
+    hostname: str
+    url: str | None = None
+    status: NodeHealth
+    latency_ms: int | None = None
+    last_checked_at: datetime | None = None
+    last_seen_at: datetime | None = None
+    last_error: str | None = None
+    details: dict[str, int | str | None] = Field(default_factory=dict)
+
+
+class NodeStatusSummary(BaseModel):
+    healthy: int
+    degraded: int
+    down: int
+    unknown: int
+
+
+class NodeStatusReport(BaseModel):
+    checked_at: datetime
+    overall_status: Literal["healthy", "degraded", "down"]
+    summary: NodeStatusSummary
+    nodes: list[AdminNodeStatus]

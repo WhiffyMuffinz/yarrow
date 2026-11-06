@@ -8,14 +8,18 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  Keyboard,
+  PanelLeftClose,
+  PanelLeftOpen,
   Share2,
 } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/Badge';
 import { cn } from '@/lib/cn';
-import { DocumentDetails } from './DocumentDetails';
+import { DocumentDetails, ModelInfo } from './DocumentDetails';
 import { FindInDocument } from './FindInDocument';
 import { RegionFilterDropdown } from './RegionFilter';
 import { ShareModal } from './ShareModal';
+import { THUMBNAIL_SIDEBAR_ID } from './ThumbnailSidebar';
 import { useViewer } from './ViewerContext';
 
 const ICON_BUTTON =
@@ -32,6 +36,7 @@ function PageIndicator() {
         disabled={currentPage <= 1}
         onClick={() => scrollToPage(currentPage - 1)}
         title="Previous page"
+        aria-keyshortcuts="ArrowLeft K"
       >
         <ChevronLeft aria-hidden="true" className="size-4" />
         <span className="sr-only">Previous page</span>
@@ -48,11 +53,37 @@ function PageIndicator() {
         disabled={currentPage >= pageCount}
         onClick={() => scrollToPage(currentPage + 1)}
         title="Next page"
+        aria-keyshortcuts="ArrowRight J"
       >
         <ChevronRight aria-hidden="true" className="size-4" />
         <span className="sr-only">Next page</span>
       </button>
     </div>
+  );
+}
+
+function ThumbnailsToggle() {
+  const { thumbnailsOpen, toggleThumbnails } = useViewer();
+  const label = thumbnailsOpen
+    ? 'Hide page thumbnails'
+    : 'Show page thumbnails';
+  return (
+    <button
+      type="button"
+      className={ICON_BUTTON}
+      onClick={toggleThumbnails}
+      title={label}
+      aria-expanded={thumbnailsOpen}
+      aria-controls={THUMBNAIL_SIDEBAR_ID}
+      aria-keyshortcuts="T"
+    >
+      {thumbnailsOpen ? (
+        <PanelLeftClose aria-hidden="true" className="size-4" />
+      ) : (
+        <PanelLeftOpen aria-hidden="true" className="size-4" />
+      )}
+      <span className="sr-only">Page thumbnails</span>
+    </button>
   );
 }
 
@@ -65,6 +96,7 @@ function BoundingBoxToggle() {
       onClick={() => setShowBoundingBoxes(!showBoundingBoxes)}
       title={showBoundingBoxes ? 'Hide bounding boxes' : 'Show bounding boxes'}
       aria-pressed={showBoundingBoxes}
+      aria-keyshortcuts="B"
     >
       {showBoundingBoxes ? (
         <Eye aria-hidden="true" className="size-4" />
@@ -74,6 +106,22 @@ function BoundingBoxToggle() {
       <span className="sr-only">
         {showBoundingBoxes ? 'Hide bounding boxes' : 'Show bounding boxes'}
       </span>
+    </button>
+  );
+}
+
+function ShortcutsHelpButton() {
+  const { setShortcutsHelpOpen } = useViewer();
+  return (
+    <button
+      type="button"
+      className={ICON_BUTTON}
+      onClick={() => setShortcutsHelpOpen(true)}
+      title="Keyboard shortcuts (?)"
+      aria-label="Keyboard shortcuts"
+      aria-keyshortcuts="?"
+    >
+      <Keyboard aria-hidden="true" className="size-4" />
     </button>
   );
 }
@@ -91,6 +139,7 @@ export function ViewerHeader({ actions }: { actions?: ReactNode }) {
         <ArrowLeft aria-hidden="true" className="size-4" />
         <span className="sr-only">Back to documents</span>
       </Link>
+      <ThumbnailsToggle />
       <div className="flex min-w-[10rem] flex-1 items-center gap-3">
         <h1
           title={document.filename}
@@ -99,6 +148,7 @@ export function ViewerHeader({ actions }: { actions?: ReactNode }) {
           {document.filename}
         </h1>
         <StatusBadge status={document.status} className="shrink-0" />
+        <ModelInfo className="max-w-[18rem]" />
       </div>
       <DocumentDetails />
       <FindInDocument />
@@ -106,6 +156,7 @@ export function ViewerHeader({ actions }: { actions?: ReactNode }) {
       <PageIndicator />
       <div className="flex items-center gap-1 border-l border-slate-200 pl-4">
         <BoundingBoxToggle />
+        <ShortcutsHelpButton />
         <button
           type="button"
           className={ICON_BUTTON}

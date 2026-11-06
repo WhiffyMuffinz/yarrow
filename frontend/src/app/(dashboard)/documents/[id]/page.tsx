@@ -8,12 +8,16 @@ import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { ExtractedContentList } from '@/components/viewer/ExtractedContentList';
 import { OriginalPane } from '@/components/viewer/OriginalPane';
+import { ProcessingProgressBar } from '@/components/viewer/ProcessingProgressBar';
 import {
   ReprocessBar,
   ReprocessButton,
 } from '@/components/viewer/ReprocessBar';
 import { BoundingBoxCanvas } from '@/components/viewer/BoundingBoxCanvas';
 import { SplitViewer } from '@/components/viewer/SplitViewer';
+import { KeyboardShortcutsModal } from '@/components/viewer/KeyboardShortcutsModal';
+import { ThumbnailSidebar } from '@/components/viewer/ThumbnailSidebar';
+import { useViewerShortcuts } from '@/components/viewer/useViewerShortcuts';
 import { ViewerHeader } from '@/components/viewer/ViewerHeader';
 import {
   ViewerProvider,
@@ -22,11 +26,10 @@ import {
 } from '@/components/viewer/ViewerContext';
 import { isWorkingOn } from '@/lib/documents';
 import { toApiError } from '@/lib/errors';
+import { useDocumentProgress } from '@/lib/useDocumentProgress';
 import { getDocumentTree, type DocumentTree } from '@/lib/viewer';
 import { TableOperationsDropdown } from '@/components/viewer/TableOperationsMenu';
 import { ExportMenu } from '@/components/viewer/ExportMenu';
-
-const POLL_INTERVAL_MS = 5000;
 
 type Load =
   | { state: 'loading' }
@@ -43,6 +46,7 @@ function DocumentViewer({ documentId }: { documentId: string }) {
   const searchParams = useSearchParams();
   const regionId = searchParams.get('region');
   const query = searchParams.get('q') ?? '';
+  const cellId = searchParams.get('cell');
 
   const requestedPage = Number(searchParams.get('page'));
   const [load, setLoad] = useState<Load>({ state: 'loading' });
@@ -50,18 +54,12 @@ function DocumentViewer({ documentId }: { documentId: string }) {
 
   useEffect(() => {
     let current = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
 
     async function fetchTree() {
       try {
         const tree = await getDocumentTree(documentId);
         if (!current) return;
         setLoad({ state: 'ready', tree });
-
-        // Only refresh tree if the document is still being worked on
-        if (isWorkingOn(tree.document)) {
-          timer = setTimeout(fetchTree, POLL_INTERVAL_MS);
-        }
       } catch (err) {
         if (!current) return;
         const apiError = toApiError(err);
@@ -79,12 +77,13 @@ function DocumentViewer({ documentId }: { documentId: string }) {
     fetchTree();
     return () => {
       current = false;
-      clearTimeout(timer);
     };
   }, [documentId, attempt]);
 
   // Fetch the document again, for instance, after starting a reprocess.
   const refresh = useCallback(() => setAttempt((count) => count + 1), []);
+  const working = load.state === 'ready' && isWorkingOn(load.tree.document);
+  const progress = useDocumentProgress(documentId, working);
 
   if (load.state === 'loading') {
     return (
@@ -149,11 +148,13 @@ function DocumentViewer({ documentId }: { documentId: string }) {
     <ViewerProvider
       document={load.tree.document}
       tree={load.tree}
+      progress={working ? progress : null}
       initialMode={defaultMode()}
       initialPage={initialPage}
       refresh={refresh}
       highlightRegionId={regionId}
       highlightQuery={query}
+      highlightCellId={cellId}
     >
       <DocumentViewerLayout refresh={refresh} />
     </ViewerProvider>
@@ -161,9 +162,18 @@ function DocumentViewer({ documentId }: { documentId: string }) {
 }
 
 function DocumentViewerLayout({ refresh }: { refresh: () => void }) {
-  const { showBoundingBoxes } = useViewer();
+  const { showBoundingBoxes, shortcutsHelpOpen, setShortcutsHelpOpen } =
+    useViewer();
+  const announcement = useViewerShortcuts();
   return (
     <div className="flex h-full flex-col">
+      <p aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+      <KeyboardShortcutsModal
+        open={shortcutsHelpOpen}
+        onClose={() => setShortcutsHelpOpen(false)}
+      />
       <ViewerHeader
         actions={
           <>
@@ -173,21 +183,25 @@ function DocumentViewerLayout({ refresh }: { refresh: () => void }) {
           </>
         }
       />
+      <ProcessingProgressBar />
       <ReprocessBar onReprocessed={refresh} />
-      <SplitViewer
-        original={
-          <OriginalPane
-            // Rendered as an element, not called, so BoundingBoxCanvas's hooks
-            // belong to it rather than to the PageFrame that draws it
-            renderPageOverlay={
-              showBoundingBoxes
-                ? (info) => <BoundingBoxCanvas {...info} />
-                : undefined
-            }
-          />
-        }
-        extracted={<ExtractedContentList />}
-      />
+      <div className="flex min-h-0 flex-1">
+        <ThumbnailSidebar />
+        <SplitViewer
+          original={
+            <OriginalPane
+              // Rendered as an element, not called, so BoundingBoxCanvas's hooks
+              // belong to it rather than to the PageFrame that draws it
+              renderPageOverlay={
+                showBoundingBoxes
+                  ? (info) => <BoundingBoxCanvas {...info} />
+                  : undefined
+              }
+            />
+          }
+          extracted={<ExtractedContentList />}
+        />
+      </div>
     </div>
   );
 }

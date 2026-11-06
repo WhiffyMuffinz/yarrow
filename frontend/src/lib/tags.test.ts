@@ -78,9 +78,17 @@ it('listTags fetches this user tags', async () => {
 
 it('listDocuments can filter by tag_id', async () => {
   vi.mocked(api.get).mockResolvedValue({ data: [] });
-  await listDocuments('tag-1');
+  await listDocuments(undefined, 'tag-1');
   expect(api.get).toHaveBeenCalledWith('/api/v1/documents/', {
     params: { tag_id: 'tag-1' },
+  });
+});
+
+it('listDocuments can combine folder and tag filters', async () => {
+  vi.mocked(api.get).mockResolvedValue({ data: [] });
+  await listDocuments('folder-1', 'tag-1');
+  expect(api.get).toHaveBeenCalledWith('/api/v1/documents/', {
+    params: { folder_id: 'folder-1', tag_id: 'tag-1' },
   });
 });
 

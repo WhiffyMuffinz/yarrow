@@ -27,6 +27,8 @@ from yarrow_db.models import (
     Warning,
 )
 
+from app.services.job_progress import cancel_open_job_pages
+
 logger = logging.getLogger(__name__)
 
 # Jobs whose Celery task may still be waiting in the queue.
@@ -136,6 +138,15 @@ async def delete_document_rows(
         )
     )
 
+    for column in (Page.page_image_key, Page.thumbnail_key):
+        keys.extend(
+            await db.scalars(
+                select(column).where(
+                    Page.document_id.in_(document_ids), column.is_not(None)
+                )
+            )
+        )
+
     for statement in (
         delete(TableCell).where(TableCell.region_table_id.in_(region_table_ids)),
         delete(RegionTable).where(RegionTable.id.in_(region_table_ids)),
@@ -227,7 +238,10 @@ async def _stop_unfinished_jobs(db: AsyncSession, document: Document) -> list[st
     now = _utcnow()
     for job in jobs:
         job.status = "canceled"
+        job.current_stage = "canceled"
         job.updated_at = now
+    if jobs:
+        await db.execute(cancel_open_job_pages([job.id for job in jobs], now))
     if document.status in _UNFINISHED_JOB_STATES:
         document.status = "canceled"
         document.error_message = None

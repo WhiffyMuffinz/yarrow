@@ -1,10 +1,17 @@
 """Unit tests for process_document_task"""
 
+import uuid
+
 import pytest
+from yarrow_db.models import JobPage
 from yarrow_db.models.region import RegionImage
 from yarrow_storage import ObjectNotFoundError
 
 from app.tasks.ingestion import AllPagesFailedError, process_document_task
+
+
+def _results(session):
+    return [obj for obj in session.added if not isinstance(obj, JobPage)]
 
 
 # Test parsing successes given supported files
@@ -32,9 +39,9 @@ class TestAllFailure:
             process_document_task(str(job.id))
 
         assert job.status == "failed"
-        assert job.current_stage == "parsing"
+        assert job.current_stage == "failed"
         assert job.total_pages == 3
-        assert job.pages_processed == 0
+        assert job.pages_processed == 3
         assert job.error_message == "3 of 3 page(s) failed: 1, 2, 3"
         assert job.document.status == "failed"
         assert job.document.page_count == 3
@@ -50,7 +57,7 @@ class TestPartialFailure:
         assert job.status == "completed"
         assert job.current_stage == "finished"
         assert job.total_pages == 3
-        assert job.pages_processed == 1
+        assert job.pages_processed == 3
         assert job.error_message == "2 of 3 page(s) failed: 1, 2"
         assert job.document.status == "completed"
         assert job.document.page_count == 3
@@ -92,7 +99,7 @@ class TestJobDeleted:
 
         process_document_task(str(job.id))
 
-        assert session.added == []
+        assert _results(session) == []
 
     def test_failure_still_raised_when_job_exists(self, job, parser):
         parser.configure(inference_error=RuntimeError("gateway down"))
@@ -136,7 +143,30 @@ class TestCanceled:
 
         assert job.status == "canceled"
         assert job.document.status == "canceled"
-        assert session.added == []
+        assert _results(session) == []
+
+    def test_force_canceled_by_admin_saves_nothing(
+        self, job, session, storage, parser, monkeypatch
+    ):
+        parser.configure(page_count=2)
+        admin_id = uuid.uuid4()
+
+        def force_cancel_during_inference(self, page_to_process=None):
+            job.status = "canceled"
+            job.current_stage = "canceled"
+            job.canceled_by_id = admin_id
+            job.cancel_reason = "Stuck in parsing for 2 hours"
+            job.document.status = "canceled"
+
+        monkeypatch.setattr(type(parser), "process_sync", force_cancel_during_inference)
+
+        process_document_task(str(job.id))
+
+        assert job.status == "canceled"
+        assert job.current_stage == "canceled"
+        assert job.canceled_by_id == admin_id
+        assert job.document.status == "canceled"
+        assert _results(session) == []
 
     def test_canceled_while_downloading_skips_ocr(
         self, job, session, storage, parser, monkeypatch

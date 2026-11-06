@@ -194,8 +194,11 @@ async def load_document_tree(
             width=row.width,
             height=row.height,
             status=row.status,
-            error_message=row.error_message,
+            error_code=row.error_code,
             image_key=row.page_image_key,
+            has_thumbnail=row.thumbnail_key is not None,
+            model_name=row.model_name,
+            model_version=row.model_version,
             regions=regions_by_page.get(row.id, []),
             warnings=warnings_by_page.get(row.id, []),
         )
@@ -331,6 +334,7 @@ def _attach_cells(
         global_row = (region_table.row_start or 0) + (cell.row_idx or 0)
         assembly.cells.append(
             TableCellNode(
+                id=cell.id,
                 row=global_row,
                 col=cell.col_idx or 0,
                 row_span=row_span,

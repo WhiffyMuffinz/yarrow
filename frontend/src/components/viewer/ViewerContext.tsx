@@ -10,12 +10,31 @@ import {
   type ReactNode,
 } from 'react';
 import type { DocumentSummary } from '@/lib/documents';
+import { mergePageStates, type PageState } from '@/lib/pageStatus';
+import type { DocumentProgress } from '@/lib/progress';
 import type { DocumentTree } from '@/lib/viewer';
 
 export type ViewMode = 'original' | 'split' | 'extracted';
 
 // Margin left alone on top of a page when navigating to it
 const PAGE_SCROLL_MARGIN = 16;
+
+export const THUMBNAILS_OPEN_STORAGE_KEY = 'yarrow.viewer.thumbnailsOpen';
+const THUMBNAILS_DEFAULT_OPEN_QUERY = '(min-width: 1024px)';
+
+function initialThumbnailsOpen(): boolean {
+  try {
+    const stored = window.localStorage.getItem(THUMBNAILS_OPEN_STORAGE_KEY);
+    if (stored === 'true' || stored === 'false') return stored === 'true';
+  } catch {}
+  return window.matchMedia?.(THUMBNAILS_DEFAULT_OPEN_QUERY).matches ?? false;
+}
+
+function storeThumbnailsOpen(open: boolean) {
+  try {
+    window.localStorage.setItem(THUMBNAILS_OPEN_STORAGE_KEY, String(open));
+  } catch {}
+}
 export type Pane = 'original' | 'extracted';
 
 type ViewerState = {
@@ -27,6 +46,8 @@ type ViewerState = {
 
   // Whether the viewer may correct text or edit tables (owner or reviewer).
   canEdit: boolean;
+
+  pageStates: Map<number, PageState>;
 
   // Page count in the document, once known from either the file or the tree.
   pageCount: number | null;
@@ -48,10 +69,14 @@ type ViewerState = {
   // Returns true only when the page differs from the one already current.
   reportVisiblePage: (page: number) => boolean;
 
-  // current find hit; starts from a /search link's ?region=&q=
   highlightRegionId: string | null;
   highlightQuery: string;
-  setHighlight: (regionId: string | null, query: string) => void;
+  highlightCellId: string | null;
+  setHighlight: (
+    regionId: string | null,
+    query: string,
+    cellId?: string | null
+  ) => void;
 
   // Pages the reader has switched back to the raw original in the original
   // pane. A rotated page (image_key set) shows its corrected upright image by
@@ -73,6 +98,13 @@ type ViewerState = {
 
   showBoundingBoxes: boolean;
   setShowBoundingBoxes: (show: boolean) => void;
+
+  thumbnailsOpen: boolean;
+  setThumbnailsOpen: (open: boolean) => void;
+  toggleThumbnails: () => void;
+
+  shortcutsHelpOpen: boolean;
+  setShortcutsHelpOpen: (open: boolean) => void;
 
   showLowConfidence: boolean;
   setShowLowConfidence: (show: boolean) => void;
@@ -100,20 +132,24 @@ const ViewerContext = createContext<ViewerState | null>(null);
 export function ViewerProvider({
   document,
   tree,
+  progress = null,
   initialMode = 'split',
   initialPage = 1,
   refresh,
   highlightRegionId: initialHighlightRegionId = null,
   highlightQuery: initialHighlightQuery = '',
+  highlightCellId: initialHighlightCellId = null,
   children,
 }: {
   document: DocumentSummary;
   tree: DocumentTree | null;
+  progress?: DocumentProgress | null;
   initialMode?: ViewMode;
   initialPage?: number;
   refresh: () => void;
   highlightRegionId?: string | null;
   highlightQuery?: string;
+  highlightCellId?: string | null;
   children: ReactNode;
 }) {
   const [mode, setMode] = useState<ViewMode>(initialMode);
@@ -125,8 +161,27 @@ export function ViewerProvider({
     initialHighlightRegionId
   );
   const [highlightQuery, setHighlightQuery] = useState(initialHighlightQuery);
+  const [highlightCellId, setHighlightCellId] = useState<string | null>(
+    initialHighlightCellId
+  );
   const [activeRegionId, setActiveRegionId] = useState<string | null>(null);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
+  const [thumbnailsOpen, setThumbnailsOpenState] = useState(
+    initialThumbnailsOpen
+  );
+
+  const setThumbnailsOpen = useCallback((open: boolean) => {
+    setThumbnailsOpenState(open);
+    storeThumbnailsOpen(open);
+  }, []);
+
+  const toggleThumbnails = useCallback(() => {
+    setThumbnailsOpenState((open) => {
+      storeThumbnailsOpen(!open);
+      return !open;
+    });
+  }, []);
+  const [shortcutsHelpOpen, setShortcutsHelpOpen] = useState(false);
   const [showLowConfidence, setShowLowConfidence] = useState(false);
   const [regionFilter, setRegionFilter] = useState<string | null>(null);
   const [originalPages, setOriginalPages] = useState<Set<number>>(new Set());
@@ -208,10 +263,14 @@ export function ViewerProvider({
     });
   }, []);
 
-  const setHighlight = useCallback((regionId: string | null, query: string) => {
-    setHighlightRegionId(regionId);
-    setHighlightQuery(query);
-  }, []);
+  const setHighlight = useCallback(
+    (regionId: string | null, query: string, cellId: string | null = null) => {
+      setHighlightRegionId(regionId);
+      setHighlightQuery(query);
+      setHighlightCellId(cellId);
+    },
+    []
+  );
 
   // Read synchronously by scroll handlers, which can fire before a re-render
   const currentPageRef = useRef(initialPage);
@@ -254,11 +313,17 @@ export function ViewerProvider({
     return true;
   }, []);
 
+  const pageStates = useMemo(
+    () => mergePageStates(treeWithCorrections?.pages ?? [], progress),
+    [treeWithCorrections, progress]
+  );
+
   const value = useMemo<ViewerState>(
     () => ({
       document,
       tree: treeWithCorrections,
       canEdit: treeWithCorrections?.can_edit ?? false,
+      pageStates,
       pageCount: pageCount ?? treeWithCorrections?.stats.page_count ?? null,
       setPageCount,
       mode,
@@ -270,11 +335,17 @@ export function ViewerProvider({
       reportVisiblePage,
       highlightRegionId,
       highlightQuery,
+      highlightCellId,
       setHighlight,
       activeRegionId,
       setActiveRegionId,
       showBoundingBoxes,
       setShowBoundingBoxes,
+      thumbnailsOpen,
+      setThumbnailsOpen,
+      toggleThumbnails,
+      shortcutsHelpOpen,
+      setShortcutsHelpOpen,
       showLowConfidence,
       setShowLowConfidence,
       regionFilter,
@@ -290,6 +361,7 @@ export function ViewerProvider({
     [
       document,
       treeWithCorrections,
+      pageStates,
       pageCount,
       mode,
       currentPage,
@@ -300,9 +372,14 @@ export function ViewerProvider({
       reportVisiblePage,
       highlightRegionId,
       highlightQuery,
+      highlightCellId,
       setHighlight,
       activeRegionId,
       showBoundingBoxes,
+      thumbnailsOpen,
+      setThumbnailsOpen,
+      toggleThumbnails,
+      shortcutsHelpOpen,
       showLowConfidence,
       regionFilter,
       originalPages,

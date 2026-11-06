@@ -1,5 +1,7 @@
 import hashlib
 import logging
+from collections import Counter
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import filetype
@@ -34,7 +36,7 @@ from yarrow_db.models import (
     User,
 )
 from yarrow_db.models.region import RegionImage
-from yarrow_storage import ObjectNotFoundError, get_storage
+from yarrow_storage import ObjectNotFoundError, get_storage, thumbnail_key
 
 from app.core.config import settings
 from app.core.database import get_db
@@ -52,18 +54,33 @@ from app.deps import (
     require_read_access,
 )
 from app.schemas import (
+    BatchAcknowledge,
+    BatchAcknowledged,
+    BatchNotifications,
     BatchProgress,
+    BatchSealed,
     BulkDocumentRequest,
     BulkItemResult,
     DocumentDetail,
     DocumentFolderUpdate,
     DocumentOut,
+    DocumentProgress,
     DocumentRename,
+    DuplicateOf,
     JobOut,
+    ModelUsage,
     PageOut,
     UploadAccepted,
     UploadRejected,
     UploadResponse,
+)
+from app.services.batch_notifications import (
+    acknowledge_batch_notifications,
+    claim_batch_notifications,
+    is_finished,
+    is_sealed,
+    seal_batch,
+    sync_completed_at,
 )
 from app.services.document_deletion import (
     DocumentDeletionError,
@@ -81,11 +98,14 @@ from app.services.failure_messages import (
     QUEUE_FAILED_MESSAGE,
     public_error_message,
 )
+from app.services.job_progress import cancel_open_job_pages, document_progress
 from app.services.reprocess import (
+    LATEST_JOB_FIRST,
     ReprocessError,
     documents_out,
     reprocess_document,
 )
+from app.services.upload_sessions import purge_expired_upload_sessions
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -132,6 +152,44 @@ async def _earlier_upload(
     return result.scalars().first()
 
 
+async def _identical_document(
+    db: AsyncSession, owner_id: UUID, content_sha256: str
+) -> Document | None:
+    """This user's earliest document with exactly these bytes, if any (US-79).
+
+    Only the caller's own documents are searched, so another user's identical
+    file is never found, let alone named. Trashed documents do not count:
+    they are not in the library, and the user threw them away on purpose.
+    Documents from before the fingerprint existed have NULL and never match.
+    """
+    result = await db.execute(
+        select(Document)
+        .where(
+            Document.owner_id == owner_id,
+            Document.content_sha256 == content_sha256,
+            Document.deleted_at.is_(None),
+        )
+        .order_by(Document.created_at, Document.id)
+        .limit(1)
+    )
+    return result.scalars().first()
+
+
+def _duplicate_rejection(filename: str, existing: Document) -> UploadRejected:
+    return UploadRejected(
+        filename=filename,
+        reason=(
+            "You already have an identical document in your library: "
+            f"{existing.filename}."
+        ),
+        duplicate_of=DuplicateOf(
+            document_id=existing.id,
+            filename=existing.filename,
+            status=existing.status,
+        ),
+    )
+
+
 async def _accepted_for(db: AsyncSession, document: Document) -> UploadAccepted:
     """The upload result of a document that was stored earlier."""
     job = (
@@ -169,9 +227,7 @@ async def _revoke_tasks(task_ids: list[str]) -> None:
 async def _delete_storage(keys: list[str], context: str) -> None:
     if not keys:
         return
-    orphaned = await run_in_threadpool(
-        delete_stored_objects, get_storage(), keys
-    )
+    orphaned = await run_in_threadpool(delete_stored_objects, get_storage(), keys)
     if orphaned:
         logger.error(
             f"{context} left {len(orphaned)} stored object(s) behind: {orphaned}"
@@ -243,6 +299,13 @@ async def _get_or_create_batch(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found"
         )
+    # Every caller is about to add a document to the batch (US-60): it is
+    # not finished, the run is sending again until the browser re-seals it,
+    # and a claimed but unacknowledged notification had stale counts.
+    # notified_at is left alone: an announced batch is not announced again.
+    batch.completed_at = None
+    batch.sealed_at = None
+    batch.claimed_at = None
     return batch
 
 
@@ -251,6 +314,7 @@ async def upload_documents(
     files: list[UploadFile] = File(...),
     client_upload_ids: list[str] | None = Form(None),
     batch_id: UUID | None = Form(None),
+    allow_duplicate: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -266,11 +330,17 @@ async def upload_documents(
 
     ``batch_id`` (optional) groups every file of one upload run so their
     progress can be reported together (US-31). Jobs stay one per file.
+
+    A file with exactly the same bytes as one of the caller's own documents
+    is refused with ``duplicate_of`` naming that document, and nothing is
+    stored (US-79). Sending it again with ``allow_duplicate`` (applies to
+    every file of the request; the Upload page sends one file per request)
+    stores a separate copy, subject to the usual size and quota checks.
     """
     if client_upload_ids is not None:
         if len(client_upload_ids) != len(files):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Send exactly one client_upload_ids value per file.",
             )
         if len(set(client_upload_ids)) != len(client_upload_ids) or any(
@@ -278,7 +348,7 @@ async def upload_documents(
             for upload_id in client_upload_ids
         ):
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="client_upload_ids must be unique, non-empty and short.",
             )
 
@@ -304,6 +374,9 @@ async def upload_documents(
     # Running total, so that several files in one request cannot each pass a
     # quota check that they only collectively exceed.
     used_bytes = current_user.storage_used_bytes or 0
+    # Files kept earlier in this same request, by fingerprint, so two
+    # identical files sent together are caught as well (US-79).
+    kept_by_sha256: dict[str, Document] = {}
 
     for index, upload in enumerate(files):
         filename = upload.filename or "unnamed"
@@ -325,7 +398,7 @@ async def upload_documents(
                 accepted.append(await _accepted_for(db, earlier))
                 continue
 
-        size, _sha256, extension = await _measure(upload)
+        size, content_sha256, extension = await _measure(upload)
 
         if size == 0:
             rejected.append(UploadRejected(filename=filename, reason="File is empty"))
@@ -354,6 +427,19 @@ async def upload_documents(
                 )
             )
             continue
+        if not allow_duplicate:
+            # After the checks on the file itself (a file that could never be
+            # stored is not worth a duplicate warning) and before quota: when
+            # the user is near their limit, "you already have this" is the
+            # more useful answer, and Skip costs nothing. The user row lock
+            # above means a concurrent upload of the same bytes has either
+            # committed (and is found here) or not started its checks yet.
+            existing = kept_by_sha256.get(content_sha256) or await _identical_document(
+                db, current_user.id, content_sha256
+            )
+            if existing is not None:
+                rejected.append(_duplicate_rejection(filename, existing))
+                continue
         if used_bytes + size > settings.STORAGE_QUOTA_BYTES:
             rejected.append(
                 UploadRejected(
@@ -403,6 +489,7 @@ async def upload_documents(
             status="queued",
             client_upload_id=upload_id,
             batch_id=batch.id if batch else None,
+            content_sha256=content_sha256,
         )
         job = Job(
             id=uuid4(),
@@ -411,8 +498,10 @@ async def upload_documents(
             current_stage="queued",
             pages_processed=0,
             total_pages=0,
+            requested_by_id=current_user.id,
         )
         db.add_all([document, job])
+        kept_by_sha256.setdefault(content_sha256, document)
         jobs_by_id[job.id] = job
         documents_by_job[job.id] = document
         used_bytes += size
@@ -465,7 +554,9 @@ async def upload_documents(
         # Nothing was stored, so the request as a whole did not succeed.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=[item.model_dump() for item in rejected],
+            # mode="json": duplicate_of carries a UUID, which the plain
+            # JSONResponse behind HTTPException cannot serialise.
+            detail=[item.model_dump(mode="json") for item in rejected],
         )
     return UploadResponse(accepted=accepted, rejected=rejected)
 
@@ -485,6 +576,8 @@ async def list_documents(
     current_user: User = Depends(get_current_user),
 ):
     await _cleanup_expired_trash(db)
+    # Abandoned resumable uploads (US-80) are swept on the same occasion.
+    await purge_expired_upload_sessions(db, get_storage)
     if tag_id is not None:
         query = (
             select(Document)
@@ -504,7 +597,7 @@ async def list_documents(
                 folder_uuid = UUID(folder_id)
             except ValueError:
                 raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                     detail="folder_id must be a UUID or the string 'null'",
                 ) from None
             folder = await db.get(Folder, folder_uuid)
@@ -547,7 +640,7 @@ async def list_documents(
             folder_uuid = UUID(folder_id)
         except ValueError:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="folder_id must be a UUID or the string 'null'",
             ) from None
         folder = await db.get(Folder, folder_uuid)
@@ -592,6 +685,16 @@ async def empty_trash_endpoint(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+async def _owned_batch(db: AsyncSession, batch_id: UUID, owner_id: UUID) -> Batch:
+    """The caller's batch; anyone else's, or an unknown id, is a 404."""
+    batch = await db.get(Batch, batch_id)
+    if batch is None or batch.owner_id != owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found"
+        )
+    return batch
+
+
 @router.get("/batches/{batch_id}", response_model=BatchProgress)
 async def get_batch_progress(
     batch_id: UUID,
@@ -601,24 +704,23 @@ async def get_batch_progress(
     """Per-status counts for the files uploaded together in one run (US-31).
 
     Counted from the documents each time it is asked, so leaving and coming
-    back to the Upload page shows where things really are. Another user's
-    batch is a 404, like another user's document.
+    back to the Upload page shows where things really are. Trashed documents
+    are left out. Another user's batch is a 404, like another user's document.
     """
-    batch = await db.get(Batch, batch_id)
-    if batch is None or batch.owner_id != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Batch not found"
-        )
+    batch = await _owned_batch(db, batch_id, current_user.id)
 
-    rows = await db.execute(
-        select(Document.status, func.count())
-        # A file moved to the trash has left the run as far as the user can
-        # see, so it no longer counts toward the batch.
-        .where(Document.batch_id == batch_id, Document.deleted_at.is_(None))
-        .group_by(Document.status)
-    )
+    rows = (
+        await db.execute(
+            select(Document.status, func.count(), func.max(Document.created_at))
+            # A file moved to the trash has left the run as far as the user
+            # can see, so it no longer counts toward the batch.
+            .where(Document.batch_id == batch_id, Document.deleted_at.is_(None))
+            .group_by(Document.status)
+        )
+    ).all()
     counts = {state: 0 for state in STATUS_VALUES}
-    for state, count in rows:
+    newest = max((row[2] for row in rows if row[2] is not None), default=None)
+    for state, count, _newest in rows:
         if state not in counts:
             # Still in the batch, so still in the total. Reported as queued
             # for the user, and logged so a bad or new status value is seen.
@@ -627,12 +729,68 @@ async def get_batch_progress(
             )
             state = "queued"
         counts[state] += count
+    # Detected on read too (US-60), so completed_at is right whoever asks.
+    finished = is_finished(counts) and is_sealed(batch, newest)
+    await sync_completed_at(db, batch, finished)
     return BatchProgress(
         batch_id=batch.id,
         total=sum(counts.values()),
         created_at=batch.created_at,
+        completed_at=batch.completed_at,
         **counts,
     )
+
+
+@router.post("/batches/{batch_id}/seal", response_model=BatchSealed)
+async def seal_upload_batch(
+    batch_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The browser has sent every file of this run (US-60).
+
+    Only a sealed batch can be announced as finished, so a run whose first
+    files finished before the last was sent is not reported early. Sealing
+    again is harmless. A file that joins later (a Retry) unseals the batch
+    until the browser seals it again.
+    """
+    batch = await _owned_batch(db, batch_id, current_user.id)
+    await seal_batch(db, batch)
+    return BatchSealed(batch_id=batch.id, sealed_at=batch.sealed_at)
+
+
+@router.post("/batches/notifications/claim", response_model=BatchNotifications)
+async def claim_batch_completion_notifications(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The caller's upload batches that finished and were not announced (US-60).
+
+    Each returned batch is leased to this request for
+    ``BATCH_NOTIFICATION_LEASE_SECONDS``, atomically, so another tab checking
+    at the same time is not offered it. Acknowledge it after showing it; if
+    that never happens, it is offered again when the lease runs out. Only
+    the caller's own batches are considered.
+    """
+    return await claim_batch_notifications(db, current_user.id)
+
+
+@router.post("/batches/notifications/ack", response_model=BatchAcknowledged)
+async def acknowledge_batch_completion_notifications(
+    body: BatchAcknowledge,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """The browser has shown these notifications: never offer them again (US-60).
+
+    Ids that are not the caller's, unknown, or not currently claimed are
+    ignored rather than reported, so the answer reveals nothing about other
+    users' batches.
+    """
+    acknowledged = await acknowledge_batch_notifications(
+        db, current_user.id, body.batch_ids
+    )
+    return BatchAcknowledged(acknowledged=acknowledged)
 
 
 @router.get("/{document_id}", response_model=DocumentDetail)
@@ -651,13 +809,31 @@ async def get_document(
     pages = await db.execute(
         select(Page).where(Page.document_id == document_id).order_by(Page.page_number)
     )
+    page_rows = list(pages.scalars())
+    usage = Counter(
+        (page.model_name, page.model_version)
+        for page in page_rows
+        if page.status == "completed"
+    )
     base = (await documents_out(db, [document]))[0]
     # Validated one by one so each gets the user-facing error filter (US-11).
     return DocumentDetail(
         **base.model_dump(),
         jobs=[JobOut.model_validate(job) for job in jobs.scalars()],
-        pages=[PageOut.model_validate(page) for page in pages.scalars()],
+        pages=[PageOut.model_validate(page) for page in page_rows],
+        models=[
+            ModelUsage(model_name=name, model_version=version, page_count=count)
+            for (name, version), count in usage.most_common()
+        ],
     )
+
+
+@router.get("/{document_id}/progress", response_model=DocumentProgress)
+async def get_document_progress(
+    access: DocumentAccess = Depends(require_read_access),
+    db: AsyncSession = Depends(get_db),
+):
+    return await document_progress(db, access.document)
 
 
 @router.patch("/{document_id}", response_model=DocumentOut)
@@ -714,6 +890,7 @@ async def move_document_to_folder(
 async def reprocess_document_endpoint(
     access: DocumentAccess = Depends(require_edit_access),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Reprocess a document without uploading it again
 
@@ -722,7 +899,12 @@ async def reprocess_document_endpoint(
     Fully processed (or canceled) documents are processed again in full.
     """
     document_id = access.document.id
-    outcome = await reprocess_document(db, document_id, enqueue_document_processing)
+    outcome = await reprocess_document(
+        db,
+        document_id,
+        enqueue_document_processing,
+        requested_by_id=current_user.id,
+    )
     if not outcome.ok:
         raise HTTPException(
             status_code=(
@@ -740,6 +922,7 @@ async def reprocess_document_endpoint(
 async def cancel_document_processing(
     access: DocumentAccess = Depends(require_edit_access),
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Cancel a document's processing while it is queued or processing (US-42).
 
@@ -765,7 +948,7 @@ async def cancel_document_processing(
             await db.execute(
                 select(Job)
                 .where(Job.document_id == document_id)
-                .order_by(Job.created_at.desc())
+                .order_by(*LATEST_JOB_FIRST)
                 .limit(1)
                 .with_for_update()
                 .execution_options(populate_existing=True)
@@ -792,7 +975,12 @@ async def cancel_document_processing(
             detail="Only documents that haven't finished processing can be canceled.",
         )
 
+    now = datetime.now(UTC).replace(tzinfo=None)
     job.status = "canceled"
+    job.current_stage = "canceled"
+    job.canceled_by_id = current_user.id
+    job.updated_at = now
+    await db.execute(cancel_open_job_pages([job.id], now))
     document.status = "canceled"
     document.error_message = None
     task_id = job.celery_task_id
@@ -900,9 +1088,7 @@ async def permanently_delete_document_endpoint(
         )
 
     await _revoke_tasks(outcome.task_ids)
-    await _delete_storage(
-        outcome.storage_keys, f"Deleted document {document_id}"
-    )
+    await _delete_storage(outcome.storage_keys, f"Deleted document {document_id}")
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -930,7 +1116,7 @@ async def bulk_reprocess_documents(
             # document the user cannot reprocess.
             await get_document_access(document_id, db=db, current_user=user)
             outcome = await reprocess_document(
-                db, document_id, enqueue_document_processing
+                db, document_id, enqueue_document_processing, requested_by_id=user_id
             )
         except HTTPException as exc:
             # 404 (not the caller's) or 403 (read-only share): reported per item.
@@ -1101,6 +1287,64 @@ async def get_region_image(
         media_type="image/png",
         # Region ids are new on every reprocess, so a crop never changes
         headers={"Cache-Control": "private, max-age=86400, immutable"},
+    )
+
+
+def _thumbnail_not_available() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={
+            "detail": "This page has no thumbnail",
+            "code": "THUMBNAIL_NOT_AVAILABLE",
+        },
+    )
+
+
+@router.get("/{document_id}/pages/{page_number}/thumbnail")
+async def get_page_thumbnail(
+    page_number: int,
+    access: DocumentAccess = Depends(require_read_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """Streams the WebP thumbnail of a page for the viewer's sidebar.
+
+    While a job is running, a page without a row yet is served from its
+    deterministic key, since the worker uploads thumbnails before OCR.
+    """
+    document_id = access.document.id
+    page = (
+        await db.execute(
+            select(Page.thumbnail_key).where(
+                Page.document_id == document_id,
+                Page.page_number == page_number,
+            )
+        )
+    ).first()
+    if page is not None:
+        image_key = page.thumbnail_key
+    elif page_number >= 1 and await db.scalar(
+        select(Job.id)
+        .where(
+            Job.document_id == document_id,
+            Job.status.in_(("queued", "processing")),
+        )
+        .limit(1)
+    ):
+        image_key = thumbnail_key(document_id, page_number)
+    else:
+        image_key = None
+    if image_key is None:
+        raise _thumbnail_not_available()
+
+    try:
+        handle = await run_in_threadpool(get_storage().download_file, image_key)
+    except ObjectNotFoundError:
+        raise _thumbnail_not_available() from None
+
+    return StreamingResponse(
+        _iter_object(handle),
+        media_type="image/webp",
+        headers={"Cache-Control": "private, max-age=3600"},
     )
 
 

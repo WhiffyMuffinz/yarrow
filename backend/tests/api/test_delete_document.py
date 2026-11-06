@@ -9,6 +9,7 @@ from yarrow_db.models import (
     Document,
     DocumentShare,
     Job,
+    JobPage,
     Page,
     Region,
     RegionImage,
@@ -47,6 +48,8 @@ async def _upload(client, headers) -> tuple[uuid.UUID, uuid.UUID]:
     response = await client.post(
         UPLOAD,
         headers=headers,
+        # The same fixture bytes are uploaded many times; not a duplicate test.
+        data={"allow_duplicate": "true"},
         files=[("files", ("sample.pdf", pdf, "application/pdf"))],
     )
     accepted = response.json()["accepted"][0]
@@ -121,9 +124,7 @@ async def _count(db_session, model, *where) -> int:
 
 async def _expire_trash(db_session, document_id, days=TRASH_RETENTION_DAYS + 1):
     document = await db_session.get(Document, document_id)
-    document.deleted_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(
-        days=days
-    )
+    document.deleted_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=days)
     await db_session.flush()
 
 
@@ -228,6 +229,37 @@ class TestDeleteInAnyState:
         assert job.status == "canceled"
         assert document.status == "canceled"
         assert document.deleted_at is not None
+
+    async def test_deleting_a_running_document_cancels_its_open_pages(
+        self, client, auth_headers, fake_storage, fake_queue, revoked, db_session
+    ):
+        document_id, job_id = await _upload(client, auth_headers)
+        job = await db_session.get(Job, job_id)
+        job.status = "processing"
+        db_session.add_all(
+            [
+                JobPage(job_id=job_id, page_number=1, status="completed"),
+                JobPage(job_id=job_id, page_number=2, status="processing"),
+            ]
+        )
+        await db_session.flush()
+
+        response = await client.delete(
+            f"{DOCUMENTS}{document_id}", headers=auth_headers
+        )
+
+        assert response.status_code == 204, response.text
+        await db_session.refresh(job)
+        assert job.status == "canceled"
+        assert job.current_stage == "canceled"
+        statuses = (
+            await db_session.execute(
+                select(JobPage.status)
+                .where(JobPage.job_id == job_id)
+                .order_by(JobPage.page_number)
+            )
+        ).scalars().all()
+        assert statuses == ["completed", "canceled"]
 
     @pytest.mark.parametrize("status", ["processing", "failed", "canceled"])
     async def test_document_in_other_states_is_deleted(
@@ -445,9 +477,7 @@ class TestRestore:
         await client.delete(f"{DOCUMENTS}{document_id}", headers=auth_headers)
         other = await _other_user_headers(register, verify, login)
 
-        response = await client.post(
-            f"{DOCUMENTS}{document_id}/restore", headers=other
-        )
+        response = await client.post(f"{DOCUMENTS}{document_id}/restore", headers=other)
         assert response.status_code == 404
 
     async def test_expired_restore_purges_and_is_gone(
@@ -595,9 +625,7 @@ class TestPermanentDeleteFromTrash:
         await db_session.flush()
 
         await client.delete(f"{DOCUMENTS}{document_id}", headers=auth_headers)
-        await client.delete(
-            f"{DOCUMENTS}{document_id}/permanent", headers=auth_headers
-        )
+        await client.delete(f"{DOCUMENTS}{document_id}/permanent", headers=auth_headers)
 
         await db_session.refresh(owner)
         assert owner.storage_used_bytes == 0
