@@ -29,7 +29,7 @@ x-pipeline-image: &pipeline-image
 
 services:
   vlm-server:
-    image: lmsysorg/sglang:v0.5.22-cu130-runtime@sha256:c3d99f078c329a5b2d0c0c02c4237cf8b0dcd1dc6f875a943ae163c1720854cb
+    image: lmsysorg/sglang:v0.5.23-cu130-runtime@sha256:3ce6da3e5ea0fee2dac6a23b528cb294fedd31ca74a55a4511f709c5e01e8652
     command:
       - python3
       - -m
@@ -135,7 +135,7 @@ services:
     restart: unless-stopped
 
   gateway:
-    image: nginx:1.31-alpine@sha256:df221db836e1754089190208cee7eeda94f233197056426eda74a43ab1abeac2
+    image: nginx:1.31-alpine@sha256:713fc2ebfd92e8217db451477182ee91944b123d2b1ee9fd5a8c6e91ca6c3a11
     depends_on:
       hybrid-gateway:
         condition: service_healthy

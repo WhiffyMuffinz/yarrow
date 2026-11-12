@@ -1,6 +1,6 @@
 # PaddleX serving container: PP-StructureV3 on a source-built PaddlePaddle GPU
 # wheel for NVIDIA GB10 (aarch64, compute capability 12.1).
-FROM nvidia/cuda:13.0.0-cudnn-devel-ubuntu24.04
+FROM nvidia/cuda:13.5.0-cudnn-devel-ubuntu24.04@sha256:f24a2953ce729567af330c06d850a4f61f3a58df6901f9189d3319ea8881c107
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
