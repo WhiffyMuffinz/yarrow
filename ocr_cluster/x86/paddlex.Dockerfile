@@ -5,7 +5,7 @@
 # is not downloaded here, the shared entrypoint.sh points the VLRecognition
 # submodule
 # at the vlm-server container instead.
-FROM python:3.11-slim
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
