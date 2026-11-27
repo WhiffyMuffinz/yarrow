@@ -1,7 +1,7 @@
 # Lightweight orchestrator: crops PP-StructureV3's detected blocks and sends
 # each to a VLM for recognition. It's pure
 # HTTP glue, so it stays cheap and CPU-only regardless of cluster size.
-FROM python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535
+FROM python:3.15-slim@sha256:63bb298d2b7b88f176f51b5189f54ce6535c997682ea70885d2132f5d473a8a5
 
 WORKDIR /app
 
